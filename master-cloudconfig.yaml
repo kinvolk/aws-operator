@@ -1,7 +1,7 @@
 #cloud-config
 hostname: {{.Node.Node.Hostname}}
 ssh_authorized_keys:
-  - "ssh-rsa FILLME user"
+  - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC8KUcCIbM5hLW4DLrcfHBxVVklAdn6OZlvlQS/tdJ9AyXR+t3dSltK6M0rzRVW5MYvi8v5ZSjDG4RmuUPmpVTJfklI7cr3704x+IWgSDb2mviBjpE97dIhopyZcc8xu2MOhCft3QKUKbkLOstGma3jd721IWRbulLQ0G/hKt4PVA0vmF+BvUnqqhOE2uxNFc0qLKyf3KTZovEEgRk0TdzX9nj9lu1KlYdKSHxSDTw5PTRRn2R+TC33ySTI/TcVRRPanRtPZ8S7X0giHli/YaXxUXq7RunAiV/BuYlRVSaofaSVVo7NirWvKVAsKAhH5cV2R4jjH8+TF/qycG9N+fKJ iaguis"
 write_files:
 - path: /etc/hosts
   permissions: 0644
