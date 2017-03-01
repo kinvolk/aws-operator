@@ -2,9 +2,9 @@
 set -e
 
 CERTS_DIR=certs
+ALGO=RSA
 KEY_SIZE=4096
 DAYS=365
-ALGO=RSA
 
 mkdir -p $CERTS_DIR $CERTS_DIR/calico $CERTS_DIR/etcd
 
@@ -12,7 +12,7 @@ cd $CERTS_DIR || exit 1
 
 keys=(apiserver worker calico/client etcd/server)
 
-# generate master key
+# generate master keys
 for key in ${keys[*]}; do
   openssl genpkey -algorithm $ALGO -out "${key}-ca.pem"
   openssl genpkey -algorithm $ALGO -out "${key}-ca.pem"
@@ -20,6 +20,9 @@ for key in ${keys[*]}; do
   openssl genpkey -algorithm $ALGO -out "${key}-ca.pem"
 done
 
+# generate self-signed certs and cert keys
+# -nodes: unencrypted key
+# -x509: self-signed
 openssl req -new -newkey rsa:$KEY_SIZE -days $DAYS -nodes -x509 -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=www.example.com" -keyout apiserver-key.pem -out apiserver.pem
 openssl req -new -newkey rsa:$KEY_SIZE -days $DAYS -nodes -x509 -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=www.example.com" -keyout worker-key.pem -out worker.pem
 openssl req -new -newkey rsa:$KEY_SIZE -days $DAYS -nodes -x509 -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=www.example.com" -keyout calico/client-key.pem -out calico/client.pem
