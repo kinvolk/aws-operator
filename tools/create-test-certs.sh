@@ -6,9 +6,7 @@ KEY_SIZE=4096
 DAYS=365
 ALGO=RSA
 
-mkdir $CERTS_DIR
-mkdir $CERTS_DIR/calico
-mkdir $CERTS_DIR/etcd
+mkdir -p $CERTS_DIR $CERTS_DIR/calico $CERTS_DIR/etcd
 
 cd $CERTS_DIR || exit 1
 
