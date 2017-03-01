@@ -14,10 +14,7 @@ keys=(apiserver worker calico/client etcd/server)
 
 # generate master keys
 for key in ${keys[*]}; do
-  openssl genpkey -algorithm $ALGO -out "${key}-ca.pem"
-  openssl genpkey -algorithm $ALGO -out "${key}-ca.pem"
-  openssl genpkey -algorithm $ALGO -out "${key}-ca.pem"
-  openssl genpkey -algorithm $ALGO -out "${key}-ca.pem"
+  openssl genpkey -algorithm $ALGO -pkeyopt rsa_keygen_bits:$KEY_SIZE -out "${key}-ca.pem"
 done
 
 # generate self-signed certs and cert keys
