@@ -3,7 +3,7 @@ set -e
 
 CERTS_DIR=certs
 ALGO=RSA
-KEY_SIZE=4096
+KEY_SIZE=512
 DAYS=365
 
 mkdir -p $CERTS_DIR $CERTS_DIR/calico $CERTS_DIR/etcd
