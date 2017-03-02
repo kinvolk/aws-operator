@@ -853,5 +853,8 @@ coreos:
 
       [Service]
       ExecStart=/opt/bin/decrypt-tls-assets
+      ExecStartPost=/usr/bin/chown -R etcd:etcd /etc/kubernetes/ssl/etcd
+      # TODO this is a hack - which user needs to read this? etcd already has read
+      ExecStartPost=/usr/bin/chmod go+r /etc/kubernetes/ssl/etcd
   update:
     reboot-strategy: off
