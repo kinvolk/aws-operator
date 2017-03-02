@@ -19,7 +19,7 @@ spec:
     imageNamespace: "example"
 
   etcd:
-    domain: "test-etcd.example.org"
+    domain: "localhost"
     prefix: "test"
 
   kubernetes:
