@@ -417,6 +417,7 @@ coreos:
       After=k8s-setup-network-env.service
       Conflicts=etcd.service
       Wants=calico-node.service
+      StartLimitIntervalSec=0
 
       [Service]
       User=etcd
@@ -424,7 +425,6 @@ coreos:
       Restart=always
       RestartSec=0
       TimeoutStopSec=10
-      StartLimitIntervalSec=0
       LimitNOFILE=40000
       EnvironmentFile=/etc/network-environment
       ExecStartPre=/usr/bin/etcdctl --endpoint=http://{{.Spec.Etcd.IP}}:2379 set /k8s/master/{{.Spec.Etcd.Prefix}} '${DEFAULT_IPV4}'
@@ -486,12 +486,12 @@ coreos:
       Requires=etcd2.service
       After=etcd2.service
       Wants=k8s-api-server.service k8s-controller-manager.service k8s-scheduler.service
+      StartLimitIntervalSec=0
 
       [Service]
       Restart=always
       RestartSec=0
       TimeoutStopSec=10
-      StartLimitIntervalSec=0
       EnvironmentFile=/etc/network-environment
       Environment="ETCD_AUTHORITY=127.0.0.1:2383"
       ExecStartPre=/usr/bin/wget -O /opt/bin/calicoctl https://s3-eu-west-1.amazonaws.com/downloads.giantswarm.io/calicoctl/v0.22.0/calicoctl
@@ -559,12 +559,12 @@ coreos:
       Description=k8s-api-server
       Requires=calico-node.service
       After=calico-node.service
+      StartLimitIntervalSec=0
 
       [Service]
       Restart=always
       RestartSec=0
       TimeoutStopSec=10
-      StartLimitIntervalSec=0
       EnvironmentFile=/etc/network-environment
       Environment="IMAGE={{.Spec.Docker.ImageNamespace}}/hyperkube:{{.Spec.Kubernetes.Hyperkube.Version}}"
       Environment="NAME=%p.service"
@@ -636,12 +636,12 @@ coreos:
       Description=k8s-controller-manager Service
       Requires=calico-node.service
       After=calico-node.service
+      StartLimitIntervalSec=0
 
       [Service]
       Restart=always
       RestartSec=0
       TimeoutStopSec=10
-      StartLimitIntervalSec=0
       EnvironmentFile=/etc/network-environment
       Environment="IMAGE={{.Spec.Docker.ImageNamespace}}/hyperkube:{{.Spec.Kubernetes.Hyperkube.Version}}"
       Environment="NAME=%p.service"
@@ -698,12 +698,12 @@ coreos:
       Description=k8s-scheduler Service
       Requires=calico-node.service
       After=calico-node.service
+      StartLimitIntervalSec=0
 
       [Service]
       Restart=always
       RestartSec=0
       TimeoutStopSec=10
-      StartLimitIntervalSec=0
       EnvironmentFile=/etc/network-environment
       Environment="IMAGE={{.Spec.Docker.ImageNamespace}}/hyperkube:{{.Spec.Kubernetes.Hyperkube.Version}}"
       Environment="NAME=%p.service"
