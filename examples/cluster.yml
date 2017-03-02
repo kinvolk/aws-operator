@@ -4,7 +4,6 @@ metadata:
   name: test
 spec:
   calico:
-    cidr: "16"
     mtu: "1430"
     subnet: "192.168.0.0/16"
   cluster:
