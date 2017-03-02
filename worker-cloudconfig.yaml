@@ -190,7 +190,7 @@ coreos:
       After=network-online.target
 
       [Service]
-      Type=one-shot
+      Type=oneshot
       ExecStart=/usr/bin/ip route add ${HOST_PUBLIC_IP} dev eth0 via ${IP_BRIDGE}
 
       [Install]
