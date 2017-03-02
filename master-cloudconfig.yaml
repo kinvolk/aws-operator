@@ -414,8 +414,9 @@ coreos:
     content: |
       [Unit]
       Description=etcd2
-      Requires=k8s-setup-network-env.service
-      After=k8s-setup-network-env.service
+      # TODO can we move this to a Wants in the decrypt-tls-certs.service ?
+      Requires=k8s-setup-network-env.service decrypt-tls-certs.service
+      After=k8s-setup-network-env.service decrypt-tls-certs.service
       Conflicts=etcd.service
       Wants=calico-node.service
       StartLimitIntervalSec=0
@@ -483,8 +484,8 @@ coreos:
     content: |
       [Unit]
       Description=Calico per-host agent
-      Requires=etcd2.service
-      After=etcd2.service
+      Requires=etcd2.service decrypt-tls-certs.service
+      After=etcd2.service decrypt-tls-certs.service
       Wants=k8s-api-server.service k8s-controller-manager.service k8s-scheduler.service
       StartLimitIntervalSec=0
 
