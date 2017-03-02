@@ -397,7 +397,7 @@ coreos:
       Type=oneshot
       RemainAfterExit=yes
       TimeoutStartSec=0
-      Environment="IMAGE={{.Spec.Docker.ImageNamespace}}/setup-network-env:{{.Spec.Operator.NetworkSetupVersion}}
+      Environment="IMAGE={{.Spec.Docker.ImageNamespace}}/setup-network-env:{{.Spec.Operator.NetworkSetupVersion}}"
       Environment="NAME=%p.service"
       Environment="NETWORK_CONFIG_CONTAINER="
       ExecStartPre=/usr/bin/mkdir -p /opt/bin/
