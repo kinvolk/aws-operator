@@ -642,6 +642,7 @@ coreos:
       ExecStartPre=/usr/bin/docker pull $IMAGE
       ExecStartPre=-/usr/bin/docker stop -t 10 $NAME
       ExecStartPre=-/usr/bin/docker rm -f $NAME
+      ExecStartPre=/usr/bin/openssl genrsa -out /etc/kubernetes/secrets/token_sign_key.pem 2048
       ExecStart=/usr/bin/docker run --rm --net=host --name $NAME \
       -v /etc/kubernetes/ssl/:/etc/kubernetes/ssl/ \
       -v /etc/kubernetes/config/:/etc/kubernetes/config/ \
