@@ -166,6 +166,106 @@ func (s *Service) newClusterListWatch() *cache.ListWatch {
 	return listWatch
 }
 
+func (s *Service) setupNetworking(spec awstpr.Spec) (string, string, string, error) {
+	s.awsConfig.Region = spec.Aws.Region
+	_, ec2Client := awsutil.NewClient(s.awsConfig)
+
+	vpcInput := &ec2.CreateVpcInput{
+		CidrBlock: aws.String("10.0.0.0/16"),
+	}
+	vpcOutput, err := ec2Client.CreateVpc(vpcInput)
+	if err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+	vpcId := vpcOutput.Vpc.VpcId
+
+	if err := ec2Client.WaitUntilVpcAvailable(&ec2.DescribeVpcsInput{
+		VpcIds: []*string{
+			vpcId,
+		},
+	}); err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+
+	gwOutput, err := ec2Client.CreateInternetGateway(&ec2.CreateInternetGatewayInput{})
+	if err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+	gwId := gwOutput.InternetGateway.InternetGatewayId
+
+	if _, err := ec2Client.AttachInternetGateway(&ec2.AttachInternetGatewayInput{
+		InternetGatewayId: gwId,
+		VpcId:             vpcId,
+	}); err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+
+	rtOutput, err := ec2Client.CreateRouteTable(&ec2.CreateRouteTableInput{
+		VpcId: vpcId,
+	})
+	if err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+	routeTableId := rtOutput.RouteTable.RouteTableId
+
+	if _, err := ec2Client.CreateRoute(&ec2.CreateRouteInput{
+		RouteTableId:         routeTableId,
+		DestinationCidrBlock: aws.String("0.0.0.0/0"),
+		GatewayId:            gwId,
+	}); err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+
+	privateSubnetId, err := createSubnet(ec2Client, "10.0.0.0/19", *vpcId)
+	if err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+
+	publicSubnetId, err := createSubnet(ec2Client, "10.0.128.0/20", *vpcId)
+	if err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+
+	if _, err := ec2Client.AssociateRouteTable(&ec2.AssociateRouteTableInput{
+		RouteTableId: routeTableId,
+		SubnetId:     aws.String(publicSubnetId),
+	}); err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+
+	if _, err := ec2Client.ModifySubnetAttribute(&ec2.ModifySubnetAttributeInput{
+		MapPublicIpOnLaunch: &ec2.AttributeBooleanValue{
+			Value: aws.Bool(true),
+		},
+		SubnetId: aws.String(publicSubnetId),
+	}); err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+
+	sgOutput, err := ec2Client.CreateSecurityGroup(&ec2.CreateSecurityGroupInput{
+		Description: aws.String("SSH security group"),
+		GroupName:   aws.String("SSH access"),
+		VpcId:       vpcId,
+	})
+	if err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+
+	groupId := sgOutput.GroupId
+
+	if _, err := ec2Client.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
+		CidrIp:     aws.String("0.0.0.0/0"),
+		GroupId:    groupId,
+		IpProtocol: aws.String("tcp"),
+		FromPort:   aws.Int64(0),
+		ToPort:     aws.Int64(22),
+	}); err != nil {
+		return "", "", "", microerror.MaskAny(err)
+	}
+
+	return publicSubnetId, privateSubnetId, *groupId, nil
+}
+
 func (s *Service) Boot() {
 	s.bootOnce.Do(func() {
 		if err := s.createTPR(); err != nil {
@@ -187,14 +287,20 @@ func (s *Service) Boot() {
 						return
 					}
 
+					publicSubnetId, privateSubnetId, groupId, err := s.setupNetworking(cluster.Spec)
+					if err != nil {
+						s.logger.Log("error", fmt.Sprintf("could not setup network: %s", err))
+						return
+					}
+
 					// Run masters
-					if err := s.runMachines(cluster.Spec, cluster.Name, prefixMaster); err != nil {
+					if err := s.runMachines(cluster.Spec, cluster.Name, prefixMaster, publicSubnetId, groupId); err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
 						return
 					}
 
 					// Run workers
-					if err := s.runMachines(cluster.Spec, cluster.Name, prefixWorker); err != nil {
+					if err := s.runMachines(cluster.Spec, cluster.Name, prefixWorker, privateSubnetId, groupId); err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
 						return
 					}
@@ -220,7 +326,20 @@ func (s *Service) Boot() {
 	})
 }
 
-func (s *Service) runMachines(spec awstpr.Spec, clusterName string, prefix string) error {
+func createSubnet(ec2Client *ec2.EC2, CidrBlock string, vpcId string) (subnetId string, err error) {
+	createSubnetOutput, err := ec2Client.CreateSubnet(&ec2.CreateSubnetInput{
+		CidrBlock: aws.String(CidrBlock),
+		VpcId:     aws.String(vpcId),
+	})
+	if err != nil {
+		return "", microerror.MaskAny(err)
+	}
+	subnetId = *createSubnetOutput.Subnet.SubnetId
+
+	return
+}
+
+func (s *Service) runMachines(spec awstpr.Spec, clusterName string, prefix string, subnetId, groupId string) error {
 	var (
 		machines        []node.Node
 		awsMachines     []tpraws.Node
@@ -253,7 +372,7 @@ func (s *Service) runMachines(spec awstpr.Spec, clusterName string, prefix strin
 			Node:    machine,
 			AwsInfo: awsMachines[no],
 		}
-		if err := s.runMachine(m, spec, clusterName, cloudconfigPath, name); err != nil {
+		if err := s.runMachine(m, spec, subnetId, groupId, clusterName, cloudconfigPath, name); err != nil {
 			return microerror.MaskAny(err)
 		}
 	}
@@ -353,8 +472,8 @@ func (s *Service) encodeTLSAssets(awsSession *session.Session, kmsKeyArn string)
 	return compTLS, nil
 }
 
-func (s *Service) runMachine(machine awsNode, spec awstpr.Spec, clusterName, cloudconfigPath, name string) error {
-	s.awsConfig.Region = spec.Aws.Region
+func (s *Service) runMachine(machine awsNode, spec awstpr.Spec, subnetId, groupId, clusterName, cloudconfigPath, name string) error {
+	fmt.Println(s.awsConfig.Region)
 	awsSession, ec2Client := awsutil.NewClient(s.awsConfig)
 
 	instances, err := ec2Client.DescribeInstances(&ec2.DescribeInstancesInput{
@@ -421,6 +540,10 @@ func (s *Service) runMachine(machine awsNode, spec awstpr.Spec, clusterName, clo
 		UserData:     &cloudconfigBase64,
 		IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
 			Name: aws.String(profileName),
+		},
+		SubnetId: aws.String(subnetId),
+		SecurityGroupIds: []*string{
+			aws.String(groupId),
 		},
 	})
 	if err != nil {
