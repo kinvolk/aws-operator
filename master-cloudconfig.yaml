@@ -581,7 +581,7 @@ coreos:
       --etcd-prefix={{.Spec.Etcd.Prefix}} \
       --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota \
       --service-cluster-ip-range={{.Spec.Kubernetes.API.ClusterIPRange}} \
-      --etcd_servers=https://{{.Spec.Etcd.Domain}}:443 \
+      --etcd-servers=http://{{.Spec.Etcd.Domain}}:2379 \
       --etcd-cafile=/etc/kubernetes/ssl/etcd/server-ca.pem \
       --etcd-certfile=/etc/kubernetes/ssl/etcd/server.pem \
       --etcd-keyfile=/etc/kubernetes/ssl/etcd/server-key.pem \
