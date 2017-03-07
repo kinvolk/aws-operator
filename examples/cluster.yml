@@ -16,7 +16,7 @@ spec:
     registry:
     daemon:
       extraArgs: "--log-opt labels=io.kubernetes.container.hash,io.kubernetes.container.name,io.kubernetes.pod.name,io.kubernetes.pod.namespace,io.kubernetes.pod.uid"
-    imageNamespace: "example"
+    imageNamespace: "giantswarm"
 
   etcd:
     domain: "localhost"
