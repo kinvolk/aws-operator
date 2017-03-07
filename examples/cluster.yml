@@ -25,7 +25,7 @@ spec:
   kubernetes:
     api:
       clusterIPRange: "172.0.0.0/24"
-      domain: "example.org"
+      domain: "localhost"
       insecurePort: "8080"
       securePort: "6443"
     dns:
