@@ -666,6 +666,8 @@ coreos:
       --logtostderr=true \
       --v=2 \
       --kubeconfig=/etc/kubernetes/config/controller-manager-kubeconfig.yml \
+      --cluster-signing-cert-file=/etc/kubernetes/ssl/apiserver-ca.pem \
+      --cluster-signing-key-file=/etc/kubernetes/ssl/apiserver-key.pem \
       --root-ca-file=/etc/kubernetes/ssl/apiserver-ca.pem \
       --service-account-private-key-file=/etc/kubernetes/secrets/token_sign_key.pem
       ExecStop=-/usr/bin/docker stop -t 10 $NAME
