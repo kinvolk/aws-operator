@@ -793,7 +793,7 @@ coreos:
       ExecStartPre=-/usr/bin/docker rm -f $NAME
       ExecStart=/usr/bin/docker run --rm --net=host \
       --name $NAME \
-      -e ETCD_ENDPOINTS=http://127.0.0.1:2383 \
+      -e ETCD_ENDPOINTS=http://127.0.0.1:2379 \
       -e K8S_API=http://localhost:{{.Spec.Kubernetes.API.InsecurePort}} \
       -e LEADER_ELECTION=true \
       $IMAGE
