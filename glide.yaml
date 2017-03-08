@@ -28,7 +28,7 @@ import:
   version: v2.0.0-alpha.1
 - package: github.com/giantswarm/awstpr
   repo: git@github.com:giantswarm/awstpr.git
-  version: master
+  version: e01e335be27ca53aa07adb518124721ad9dc1def
 - package: github.com/golang/protobuf
   version: 8ee79997227bf9b34611aee7946ae64735e6fd93
   subpackages:

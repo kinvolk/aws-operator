@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/elb"
 	"github.com/aws/aws-sdk-go/service/iam"
 	awsutil "github.com/giantswarm/aws-operator/client/aws"
 	"github.com/giantswarm/awstpr"

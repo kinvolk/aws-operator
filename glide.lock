@@ -1,5 +1,5 @@
-hash: b1f01da5c4d38ea78c674ebaab53f067df809bb2069f90d80d2584ef4afb8262
-updated: 2017-02-22T14:24:54.345023735+01:00
+hash: 18a9c289aefae8f4fa6e676f3daa41a261fc598174fb623461cea8c4b0b7dc6e
+updated: 2017-03-08T16:41:45.865256784+01:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -7,7 +7,7 @@ imports:
   - compute/metadata
   - internal
 - name: github.com/aws/aws-sdk-go
-  version: 3d7773ac930d57ef4a59e0d10c5f65a0cfa5acd6
+  version: d9caf90c8e590bdd2eaa074b1ff8c201dd56e57c
   subpackages:
   - aws
   - aws/awserr
@@ -35,6 +35,7 @@ imports:
   - private/protocol/xml/xmlutil
   - private/waiter
   - service/ec2
+  - service/elb
   - service/iam
   - service/kms
   - service/sts
@@ -45,7 +46,7 @@ imports:
 - name: github.com/blang/semver
   version: 31b736133b98f26d5e078ec9eb591666edfd091f
 - name: github.com/coreos/etcd
-  version: ac1c7eba21545c4ee025f2c340e143cacb53c754
+  version: 714e7ec8db7f8398880197be10771fe89c480ee5
   subpackages:
   - auth/authpb
   - client
@@ -85,7 +86,7 @@ imports:
   - log
   - swagger
 - name: github.com/fsnotify/fsnotify
-  version: a904159b9206978bb6d53fcc7a769e5cd726c737
+  version: 7d7316ed6e1ed2de075aab8dfc76de5d158d66e1
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/giantswarm/awstpr
@@ -120,7 +121,7 @@ imports:
   - transaction/context/id
   - transaction/context/tracked
 - name: github.com/go-ini/ini
-  version: 74bdc99692c3408cb103221e38675ce8fda0a718
+  version: c437d20015c2ab6454b7a66a13109ff0fb99e17a
 - name: github.com/go-kit/kit
   version: f66b0e13579bfc5a48b9e2a94b1209c107ea1f41
   subpackages:
@@ -200,13 +201,13 @@ imports:
   subpackages:
   - pbutil
 - name: github.com/mitchellh/mapstructure
-  version: db1efb556f84b25a0a13a04aad883943538ad2e0
+  version: 53818660ed4955e899c0bcafa97299a388bd7c8e
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/pelletier/go-buffruneio
-  version: df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d
+  version: c37440a7cf42ac63b919c752ca73a85067e05992
 - name: github.com/pelletier/go-toml
-  version: 22139eb5469018e7374b3e7ef653de37ffb44f72
+  version: 13d49d4606eb801b8f01ae542b4afc4c6ee3d84a
 - name: github.com/prometheus/client_golang
   version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
@@ -235,9 +236,9 @@ imports:
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: f820543c3592e283e311a60d2a600a664e39f6f7
+  version: ce135a4ebeee6cfe9a26c93ee0d37825f26113c7
 - name: github.com/spf13/cobra
-  version: ee4055870c2d5f7ce112642377e32c9929c3bbaf
+  version: fcd0c5a1df88f5d6784cb4feead962c3f3d0b66c
 - name: github.com/spf13/jwalterweatherman
   version: fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66
 - name: github.com/spf13/pflag
