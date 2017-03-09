@@ -182,6 +182,8 @@ func (s *Service) Boot() {
 				AddFunc: func(obj interface{}) {
 					cluster := obj.(*awstpr.CustomObject)
 					s.logger.Log("info", fmt.Sprintf("creating cluster '%s'", cluster.Name))
+					s.awsConfig.Region = cluster.Spec.Aws.Region
+					awsSession, ec2Client := awsutil.NewClient(s.awsConfig)
 
 					if err := s.createClusterNamespace(*cluster); err != nil {
 						s.logger.Log("error", fmt.Sprintf("could not create cluster namespace: %s", err))
@@ -189,14 +191,20 @@ func (s *Service) Boot() {
 					}
 
 					// Run masters
-					if err := s.runMachines(cluster.Spec, cluster.Name, prefixMaster); err != nil {
+					if err := s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixMaster); err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
 						return
 					}
 
 					// Run workers
-					if err := s.runMachines(cluster.Spec, cluster.Name, prefixWorker); err != nil {
+					if err := s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixWorker); err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
+						return
+					}
+
+					// Run LBs
+					if err := s.createLBs(awsSession); err != nil {
+						s.logger.Log("error creating LBs", microerror.MaskAny(err))
 						return
 					}
 
@@ -221,7 +229,53 @@ func (s *Service) Boot() {
 	})
 }
 
-func (s *Service) runMachines(spec awstpr.Spec, clusterName string, prefix string) error {
+func (s *Service) createLBs(awsSession *session.Session) error {
+
+	s.logger.Log("info", "preparing to create LB")
+
+	svc := elb.New(awsSession)
+	params := &elb.CreateLoadBalancerInput{
+		Listeners: []*elb.Listener{
+			{
+				InstancePort:     aws.Int64(6443),
+				LoadBalancerPort: aws.Int64(443),
+				Protocol:         aws.String("HTTPS"),
+				InstanceProtocol: aws.String("HTTPS"),
+				SSLCertificateId: aws.String("arn:aws:iam::292127003750:server-certificate/vault-00653b01c95ef8f061a81c2596"),
+			},
+		},
+		LoadBalancerName: aws.String("lb"),
+		AvailabilityZones: []*string{
+			aws.String("eu-central-1a"),
+		},
+		SecurityGroups: []*string{
+			aws.String("sg-cb382ca3"),
+		},
+		// weirdly, it's az XOR subnet, or it  fails
+		//Subnets: []*string{
+		//	aws.String("subnet-7bd84413"),
+		//},
+		Tags: []*elb.Tag{
+			{
+				Key:   aws.String("test"),
+				Value: aws.String("true"),
+			},
+		},
+	}
+
+	_, err := svc.CreateLoadBalancer(params)
+
+	if err != nil {
+		s.logger.Log("error creating LB", microerror.MaskAny(err))
+		return microerror.MaskAny(err)
+	}
+
+	s.logger.Log("info", "LB created")
+
+	return nil
+}
+
+func (s *Service) runMachines(awsSession *session.Session, ec2Client ec2.EC2, spec awstpr.Spec, clusterName string, prefix string) error {
 	var (
 		machines        []node.Node
 		awsMachines     []tpraws.Node
@@ -254,7 +308,7 @@ func (s *Service) runMachines(spec awstpr.Spec, clusterName string, prefix strin
 			Node:    machine,
 			AwsInfo: awsMachines[no],
 		}
-		if err := s.runMachine(m, spec, clusterName, cloudconfigPath, name); err != nil {
+		if err := s.runMachine(awsSession, ec2Client, m, spec, clusterName, cloudconfigPath, name); err != nil {
 			return microerror.MaskAny(err)
 		}
 	}
@@ -354,10 +408,7 @@ func (s *Service) encodeTLSAssets(awsSession *session.Session, kmsKeyArn string)
 	return compTLS, nil
 }
 
-func (s *Service) runMachine(machine awsNode, spec awstpr.Spec, clusterName, cloudconfigPath, name string) error {
-	s.awsConfig.Region = spec.Aws.Region
-	awsSession, ec2Client := awsutil.NewClient(s.awsConfig)
-
+func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, machine awsNode, spec awstpr.Spec, clusterName, cloudconfigPath, name string) error {
 	instances, err := ec2Client.DescribeInstances(&ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			&ec2.Filter{
@@ -394,6 +445,7 @@ func (s *Service) runMachine(machine awsNode, spec awstpr.Spec, clusterName, clo
 	}
 
 	tlsAssets, err := s.encodeTLSAssets(awsSession, spec.Aws.KMSKeyArn)
+
 	if err != nil {
 		return microerror.MaskAny(err)
 	}
