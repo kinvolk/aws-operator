@@ -190,6 +190,12 @@ func (s *Service) Boot() {
 						return
 					}
 
+					// Run LBs
+					if err := s.createLBs(awsSession); err != nil {
+						s.logger.Log("error creating LBs", microerror.MaskAny(err))
+						return
+					}
+
 					// Run masters
 					if err := s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixMaster); err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
@@ -199,12 +205,6 @@ func (s *Service) Boot() {
 					// Run workers
 					if err := s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixWorker); err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
-						return
-					}
-
-					// Run LBs
-					if err := s.createLBs(awsSession); err != nil {
-						s.logger.Log("error creating LBs", microerror.MaskAny(err))
 						return
 					}
 
@@ -500,5 +500,26 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 
 	s.logger.Log("info", fmt.Sprintf("instance '%s' tagged", name))
 
+	instanceID := reservation.Instances[0].InstanceId
+
+	// TODO wait until instance is actually running?
+	svc := elb.New(awsSession)
+	elbParams := &elb.RegisterInstancesWithLoadBalancerInput{
+		Instances: []*elb.Instance{
+			{
+				InstanceId: instanceID,
+			},
+		},
+		LoadBalancerName: aws.String("lb"),
+	}
+
+	_, err = svc.RegisterInstancesWithLoadBalancer(elbParams)
+
+	if err != nil {
+		microerror.MaskAny(err)
+		return err
+	}
+
+	s.logger.Log("info", fmt.Sprintf("instance '%s' attached to lb", name))
 	return nil
 }
