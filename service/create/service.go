@@ -487,8 +487,10 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 
 	s.logger.Log("info", fmt.Sprintf("instance '%s' reserved", name))
 
+	instanceID := reservation.Instances[0].InstanceId
+
 	if _, err := ec2Client.CreateTags(&ec2.CreateTagsInput{
-		Resources: []*string{reservation.Instances[0].InstanceId},
+		Resources: []*string{instanceID},
 		Tags: []*ec2.Tag{
 			{
 				Key:   aws.String(tagKeyName),
@@ -505,30 +507,38 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 
 	s.logger.Log("info", fmt.Sprintf("instance '%s' tagged", name))
 
-	instanceID := reservation.Instances[0].InstanceId
+	isMaster, _ := regexp.MatchString("master-[0-9]", name)
 
-	// TODO wait until instance is actually running?
-	match, _ := regexp.MatchString("master-[0-9]", name)
-
-	if match {
-		svc := elb.New(awsSession)
-		elbParams := &elb.RegisterInstancesWithLoadBalancerInput{
-			Instances: []*elb.Instance{
-				{
-					InstanceId: instanceID,
-				},
-			},
-			LoadBalancerName: aws.String("lb"),
-		}
-
-		_, err = svc.RegisterInstancesWithLoadBalancer(elbParams)
+	if isMaster {
+		// TODO wait until instance is actually running?
+		err = s.attachInstanceToLB(awsSession, instanceID, name)
 
 		if err != nil {
-			microerror.MaskAny(err)
-			return err
+			return microerror.MaskAny(err)
 		}
-
-		s.logger.Log("info", fmt.Sprintf("instance '%s' attached to lb", name))
 	}
+
+	return nil
+}
+
+func (s *Service) attachInstanceToLB(awsSession *session.Session, instanceID *string, instanceName string) error {
+	svc := elb.New(awsSession)
+	elbParams := &elb.RegisterInstancesWithLoadBalancerInput{
+		Instances: []*elb.Instance{
+			{
+				InstanceId: instanceID,
+			},
+		},
+		LoadBalancerName: aws.String("lb"),
+	}
+
+	_, err := svc.RegisterInstancesWithLoadBalancer(elbParams)
+
+	if err != nil {
+		return microerror.MaskAny(err)
+	}
+
+	s.logger.Log("info", fmt.Sprintf("instance '%s' registered with lb", instanceName))
+
 	return nil
 }
