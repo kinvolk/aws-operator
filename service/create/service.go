@@ -3,6 +3,7 @@ package create
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
@@ -503,23 +504,27 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 	instanceID := reservation.Instances[0].InstanceId
 
 	// TODO wait until instance is actually running?
-	svc := elb.New(awsSession)
-	elbParams := &elb.RegisterInstancesWithLoadBalancerInput{
-		Instances: []*elb.Instance{
-			{
-				InstanceId: instanceID,
+	match, _ := regexp.MatchString("master-[0-9]", name)
+
+	if match {
+		svc := elb.New(awsSession)
+		elbParams := &elb.RegisterInstancesWithLoadBalancerInput{
+			Instances: []*elb.Instance{
+				{
+					InstanceId: instanceID,
+				},
 			},
-		},
-		LoadBalancerName: aws.String("lb"),
+			LoadBalancerName: aws.String("lb"),
+		}
+
+		_, err = svc.RegisterInstancesWithLoadBalancer(elbParams)
+
+		if err != nil {
+			microerror.MaskAny(err)
+			return err
+		}
+
+		s.logger.Log("info", fmt.Sprintf("instance '%s' attached to lb", name))
 	}
-
-	_, err = svc.RegisterInstancesWithLoadBalancer(elbParams)
-
-	if err != nil {
-		microerror.MaskAny(err)
-		return err
-	}
-
-	s.logger.Log("info", fmt.Sprintf("instance '%s' attached to lb", name))
 	return nil
 }
