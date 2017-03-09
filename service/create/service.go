@@ -246,16 +246,16 @@ func (s *Service) createLBs(awsSession *session.Session) error {
 			},
 		},
 		LoadBalancerName: aws.String("lb"),
-		AvailabilityZones: []*string{
-			aws.String("eu-central-1a"),
-		},
+		// AvailabilityZones: []*string{
+		// 	aws.String("eu-central-1a"),
+		// },
 		SecurityGroups: []*string{
 			aws.String("sg-cb382ca3"),
 		},
 		// weirdly, it's az XOR subnet, or it  fails
-		//Subnets: []*string{
-		//	aws.String("subnet-7bd84413"),
-		//},
+		Subnets: []*string{
+			aws.String("subnet-7bd84413"),
+		},
 		Tags: []*elb.Tag{
 			{
 				Key:   aws.String("test"),
@@ -475,6 +475,10 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 		UserData:     &cloudconfigBase64,
 		IamInstanceProfile: &ec2.IamInstanceProfileSpecification{
 			Name: aws.String(profileName),
+		},
+		Placement: &ec2.Placement{
+			// TODO remove hardcoding
+			AvailabilityZone: aws.String(spec.Aws.Region + "a"),
 		},
 	})
 	if err != nil {
