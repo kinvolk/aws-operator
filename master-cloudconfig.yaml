@@ -216,23 +216,20 @@ write_files:
   permissions: 0544
   content: |
       #!/bin/bash
-      while ! curl --output /dev/null --silent --head --fail --cacert /etc/kubernetes/ssl/apiserver-ca.pem --cert /etc/kubernetes/ssl/apiserver.pem --key /etc/kubernetes/ssl/apiserver-key.pem "https://{{.Spec.Kubernetes.API.Domain}}:443"; do sleep 1 && echo 'Waiting for master'; done
+      while ! curl --output /dev/null --silent --head --fail "http://{{.Spec.Kubernetes.API.Domain}}:{{.Spec.Kubernetes.API.InsecurePort}}"; do sleep 1 && echo 'Waiting for master'; done
 
       echo "K8S: DNS addons"
       curl -H "Content-Type: application/yaml" \
         -XPOST -d"$(cat /srv/kubedns-dep.yaml)" \
-        --cacert /etc/kubernetes/ssl/apiserver-ca.pem --cert /etc/kubernetes/ssl/apiserver.pem --key /etc/kubernetes/ssl/apiserver-key.pem \
-        "https://{{.Spec.Kubernetes.API.Domain}}:443/apis/extensions/v1beta1/namespaces/kube-system/deployments"
+        "http://{{.Spec.Kubernetes.API.Domain}}:{{.Spec.Kubernetes.API.InsecurePort}}/apis/extensions/v1beta1/namespaces/kube-system/deployments"
       curl -H "Content-Type: application/yaml" \
         -XPOST -d"$(cat /srv/kubedns-svc.yaml)" \
-        --cacert /etc/kubernetes/ssl/apiserver-ca.pem --cert /etc/kubernetes/ssl/apiserver.pem --key /etc/kubernetes/ssl/apiserver-key.pem \
-        "https://{{.Spec.Kubernetes.API.Domain}}:443/api/v1/namespaces/kube-system/services"
+        "http://{{.Spec.Kubernetes.API.Domain}}:{{.Spec.Kubernetes.API.InsecurePort}}/api/v1/namespaces/kube-system/services"
 
       echo "K8S: Calico Policy"
       curl -H "Content-Type: application/json" \
         -XPOST -d"$(cat /srv/calico-system.json)" \
-        --cacert /etc/kubernetes/ssl/apiserver-ca.pem --cert /etc/kubernetes/ssl/apiserver.pem --key /etc/kubernetes/ssl/apiserver-key.pem \
-        "https://{{.Spec.Kubernetes.API.Domain}}:443/api/v1/namespaces/"
+        "http://{{.Spec.Kubernetes.API.Domain}}:{{.Spec.Kubernetes.API.InsecurePort}}/api/v1/namespaces/"
 
       echo "Addons successfully installed"
 - path: /etc/kubernetes/config/controller-manager-kubeconfig.yml
@@ -662,7 +659,7 @@ coreos:
       -v /etc/kubernetes/secrets/token_sign_key.pem:/etc/kubernetes/secrets/token_sign_key.pem \
       $IMAGE \
       /hyperkube controller-manager \
-      --master=https://{{.Spec.Kubernetes.API.Domain}}:443 \
+      --master=http://{{.Spec.Kubernetes.API.Domain}}:{{.Spec.Kubernetes.API.InsecurePort}} \
       --logtostderr=true \
       --v=2 \
       --kubeconfig=/etc/kubernetes/config/controller-manager-kubeconfig.yml \
@@ -725,7 +722,7 @@ coreos:
       -v /etc/kubernetes/config/:/etc/kubernetes/config/ \
       $IMAGE \
       /hyperkube scheduler \
-      --master=https://{{.Spec.Kubernetes.API.Domain}}:443 \
+      --master=http://{{.Spec.Kubernetes.API.Domain}}:{{.Spec.Kubernetes.API.InsecurePort}} \
       --logtostderr=true \
       --v=2 \
       --kubeconfig=/etc/kubernetes/config/scheduler-kubeconfig.yml
