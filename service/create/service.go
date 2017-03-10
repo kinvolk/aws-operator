@@ -229,27 +229,27 @@ func (s *Service) Boot() {
 					awsSession, _ := awsutil.NewClient(s.awsConfig)
 
 					// TODO delete instances
-					err := s.deletePolicy(awsSession)
-					if err != nil {
-						s.logger.Log("error", microerror.MaskAny(err))
-					}
+					// err := s.deletePolicy(awsSession)
+					// if err != nil {
+					// 	s.logger.Log("error", microerror.MaskAny(err))
+					// }
 
-					err = s.removeRoleFromInstanceProfile(awsSession)
-					if err != nil {
-						s.logger.Log("error", microerror.MaskAny(err))
-					}
+					// err = s.removeRoleFromInstanceProfile(awsSession)
+					// if err != nil {
+					// 	s.logger.Log("error", microerror.MaskAny(err))
+					// }
 
-					err = s.deleteRole(awsSession)
-					if err != nil {
-						s.logger.Log("error", microerror.MaskAny(err))
-					}
+					// err = s.deleteRole(awsSession)
+					// if err != nil {
+					// 	s.logger.Log("error", microerror.MaskAny(err))
+					// }
 
-					err = s.deleteInstanceProfile(awsSession)
-					if err != nil {
-						s.logger.Log("error", microerror.MaskAny(err))
-					}
+					// err = s.deleteInstanceProfile(awsSession)
+					// if err != nil {
+					// 	s.logger.Log("error", microerror.MaskAny(err))
+					// }
 
-					err = s.deleteLoadBalancer(awsSession)
+					err := s.deleteLoadBalancer(awsSession)
 					if err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
 					}
