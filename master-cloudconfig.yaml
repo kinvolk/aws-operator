@@ -568,12 +568,12 @@ coreos:
       -v /etc/kubernetes/secrets/token_sign_key.pem:/etc/kubernetes/secrets/token_sign_key.pem \
       $IMAGE \
       /hyperkube apiserver \
-      --allow_privileged=true \
-      --runtime_config=api/v1 \
-      --insecure_bind_address=0.0.0.0 \
-      --insecure_port={{.Spec.Kubernetes.API.InsecurePort}} \
-      --kubelet_https=true \
-      --secure_port={{.Spec.Kubernetes.API.SecurePort}} \
+      --allow-privileged=true \
+      --runtime-config=api/v1 \
+      --insecure-bind_address=0.0.0.0 \
+      --insecure-port={{.Spec.Kubernetes.API.InsecurePort}} \
+      --kubelet-https=true \
+      --secure-port={{.Spec.Kubernetes.API.SecurePort}} \
       --bind-address=${DEFAULT_IPV4} \
       --etcd-prefix={{.Spec.Etcd.Prefix}} \
       --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota \
