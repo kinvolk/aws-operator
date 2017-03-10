@@ -220,11 +220,28 @@ func (s *Service) Boot() {
 				},
 				DeleteFunc: func(obj interface{}) {
 					cluster := obj.(*awstpr.CustomObject)
-					s.logger.Log("info", fmt.Sprintf("cluster '%s' deleted", cluster.Name))
 
 					if err := s.deleteClusterNamespace(*cluster); err != nil {
 						s.logger.Log("error", "could not delete cluster namespace:", err)
+						return
 					}
+
+					awsSession, _ := awsutil.NewClient(s.awsConfig)
+
+					// delete instances
+					err := s.deleteLoadBalancer(awsSession)
+					if err != nil {
+						s.logger.Log("error", microerror.MaskAny(err))
+						return
+					}
+
+					err = s.deleteSecurityGroup(awsSession)
+					if err != nil {
+						s.logger.Log("error", microerror.MaskAny(err))
+						return
+					}
+
+					s.logger.Log("info", fmt.Sprintf("cluster '%s' deleted", cluster.Name))
 				},
 			},
 		)
@@ -277,6 +294,21 @@ func (s *Service) createLoadBalancer(awsSession *session.Session, spec awstpr.Sp
 
 	s.logger.Log("info", "LB created")
 
+	return nil
+}
+
+func (s *Service) deleteLoadBalancer(awsSession *session.Session) error {
+	svc := elb.New(awsSession)
+
+	_, err := svc.DeleteLoadBalancer(&elb.DeleteLoadBalancerInput{
+		LoadBalancerName: aws.String("lb"),
+	})
+
+	if err != nil {
+		return microerror.MaskAny(err)
+	}
+
+	s.logger.Log("info", "load balancer deleted")
 	return nil
 }
 
@@ -574,4 +606,19 @@ func (s *Service) createSecurityGroup(awsSession *session.Session) (string, erro
 	s.logger.Log("info", "security group %v created", groupID)
 
 	return *groupID, nil
+}
+
+func (s *Service) deleteSecurityGroup(awsSession *session.Session) error {
+	svc := ec2.New(awsSession)
+
+	_, err := svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
+		GroupName: aws.String("g8s-sg"),
+	})
+
+	if err != nil {
+		return microerror.MaskAny(err)
+	}
+
+	s.logger.Log("info", "security group deleted")
+	return nil
 }
