@@ -590,20 +590,52 @@ func (s *Service) attachInstanceToLB(awsSession *session.Session, instanceID *st
 func (s *Service) createSecurityGroup(awsSession *session.Session) (string, error) {
 	// create security group
 	svc := ec2.New(awsSession)
-	params := &ec2.CreateSecurityGroupInput{
+	creationParams := &ec2.CreateSecurityGroupInput{
 		Description: aws.String("G8s Security Group"),
 		GroupName:   aws.String("g8s-sg"),
 	}
 
-	resp, err := svc.CreateSecurityGroup(params)
+	creationResp, err := svc.CreateSecurityGroup(creationParams)
 
 	if err != nil {
 		return "", microerror.MaskAny(err)
 	}
 
-	groupID := resp.GroupId
+	groupID := creationResp.GroupId
 
-	s.logger.Log("info", "security group %v created", groupID)
+	rulesParams := &ec2.AuthorizeSecurityGroupIngressInput{
+		GroupId: groupID,
+		IpPermissions: []*ec2.IpPermission{
+			{
+				IpProtocol: aws.String("TCP"),
+				FromPort:   aws.Int64(22),
+				ToPort:     aws.Int64(22),
+				IpRanges: []*ec2.IpRange{
+					{
+						CidrIp: aws.String("0.0.0.0/0"),
+					},
+				},
+			},
+			{
+				IpProtocol: aws.String("TCP"),
+				FromPort:   aws.Int64(6443),
+				ToPort:     aws.Int64(6443),
+				IpRanges: []*ec2.IpRange{
+					{
+						CidrIp: aws.String("0.0.0.0/0"),
+					},
+				},
+			},
+		},
+	}
+
+	_, err = svc.AuthorizeSecurityGroupIngress(rulesParams)
+
+	if err != nil {
+		return "", microerror.MaskAny(err)
+	}
+
+	s.logger.Log("info", fmt.Sprintf("security group %v created", groupID))
 
 	return *groupID, nil
 }
