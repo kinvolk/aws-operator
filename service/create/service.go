@@ -191,20 +191,27 @@ func (s *Service) Boot() {
 						return
 					}
 
-					// Run LBs
-					if err := s.createLBs(awsSession); err != nil {
-						s.logger.Log("error creating LBs", microerror.MaskAny(err))
+					groupID, err := s.createSecurityGroup(awsSession)
+
+					if err != nil {
+						s.logger.Log("error", fmt.Sprintf("error creating security group: %v", err))
+						return
+					}
+
+					// Run masters LB
+					if err := s.createLoadBalancer(awsSession, cluster.Spec, groupID); err != nil {
+						s.logger.Log("error", fmt.Sprintf("error creating LB: %v", microerror.MaskAny(err)))
 						return
 					}
 
 					// Run masters
-					if err := s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixMaster); err != nil {
+					if err := s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixMaster, groupID); err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
 						return
 					}
 
 					// Run workers
-					if err := s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixWorker); err != nil {
+					if err := s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixWorker, groupID); err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
 						return
 					}
@@ -230,7 +237,7 @@ func (s *Service) Boot() {
 	})
 }
 
-func (s *Service) createLBs(awsSession *session.Session) error {
+func (s *Service) createLoadBalancer(awsSession *session.Session, spec awstpr.Spec, securityGroupID string) error {
 
 	s.logger.Log("info", "preparing to create LB")
 
@@ -246,15 +253,12 @@ func (s *Service) createLBs(awsSession *session.Session) error {
 			},
 		},
 		LoadBalancerName: aws.String("lb"),
-		// AvailabilityZones: []*string{
-		// 	aws.String("eu-central-1a"),
-		// },
-		SecurityGroups: []*string{
-			aws.String("sg-cb382ca3"),
+		AvailabilityZones: []*string{
+			// TODO remove hard-coding
+			aws.String(spec.Aws.Region + "a"),
 		},
-		// weirdly, it's az XOR subnet, or it  fails
-		Subnets: []*string{
-			aws.String("subnet-7bd84413"),
+		SecurityGroups: []*string{
+			aws.String(securityGroupID),
 		},
 		Tags: []*elb.Tag{
 			{
@@ -276,7 +280,7 @@ func (s *Service) createLBs(awsSession *session.Session) error {
 	return nil
 }
 
-func (s *Service) runMachines(awsSession *session.Session, ec2Client ec2.EC2, spec awstpr.Spec, clusterName string, prefix string) error {
+func (s *Service) runMachines(awsSession *session.Session, ec2Client ec2.EC2, spec awstpr.Spec, clusterName, prefix, groupID string) error {
 	var (
 		machines        []node.Node
 		awsMachines     []tpraws.Node
@@ -309,7 +313,7 @@ func (s *Service) runMachines(awsSession *session.Session, ec2Client ec2.EC2, sp
 			Node:    machine,
 			AwsInfo: awsMachines[no],
 		}
-		if err := s.runMachine(awsSession, ec2Client, m, spec, clusterName, cloudconfigPath, name); err != nil {
+		if err := s.runMachine(awsSession, ec2Client, m, spec, clusterName, cloudconfigPath, name, groupID); err != nil {
 			return microerror.MaskAny(err)
 		}
 	}
@@ -409,7 +413,7 @@ func (s *Service) encodeTLSAssets(awsSession *session.Session, kmsKeyArn string)
 	return compTLS, nil
 }
 
-func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, machine awsNode, spec awstpr.Spec, clusterName, cloudconfigPath, name string) error {
+func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, machine awsNode, spec awstpr.Spec, clusterName, cloudconfigPath, name, securityGroupID string) error {
 	instances, err := ec2Client.DescribeInstances(&ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			&ec2.Filter{
@@ -466,6 +470,11 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 	}
 	cloudconfigBase64 := cloudconfig.base64()
 
+	// give AWS some time to propagate permissions
+	// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html#launch-instance-with-role-console
+	// TODO use one of the wait functions
+	time.Sleep(1000 * time.Millisecond)
+
 	// add instance profile to reservation
 	reservation, err := ec2Client.RunInstances(&ec2.RunInstancesInput{
 		ImageId:      aws.String(machine.AwsInfo.ImageID),
@@ -479,6 +488,9 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 		Placement: &ec2.Placement{
 			// TODO remove hardcoding
 			AvailabilityZone: aws.String(spec.Aws.Region + "a"),
+		},
+		SecurityGroupIds: []*string{
+			aws.String(securityGroupID),
 		},
 	})
 	if err != nil {
@@ -541,4 +553,25 @@ func (s *Service) attachInstanceToLB(awsSession *session.Session, instanceID *st
 	s.logger.Log("info", fmt.Sprintf("instance '%s' registered with lb", instanceName))
 
 	return nil
+}
+
+func (s *Service) createSecurityGroup(awsSession *session.Session) (string, error) {
+	// create security group
+	svc := ec2.New(awsSession)
+	params := &ec2.CreateSecurityGroupInput{
+		Description: aws.String("G8s Security Group"),
+		GroupName:   aws.String("g8s-sg"),
+	}
+
+	resp, err := svc.CreateSecurityGroup(params)
+
+	if err != nil {
+		return "", microerror.MaskAny(err)
+	}
+
+	groupID := resp.GroupId
+
+	s.logger.Log("info", "security group %v created", groupID)
+
+	return *groupID, nil
 }
