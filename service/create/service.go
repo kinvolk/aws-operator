@@ -228,17 +228,35 @@ func (s *Service) Boot() {
 
 					awsSession, _ := awsutil.NewClient(s.awsConfig)
 
-					// delete instances
-					err := s.deleteLoadBalancer(awsSession)
+					// TODO delete instances
+					err := s.deletePolicy(awsSession)
 					if err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
-						return
+					}
+
+					err = s.removeRoleFromInstanceProfile(awsSession)
+					if err != nil {
+						s.logger.Log("error", microerror.MaskAny(err))
+					}
+
+					err = s.deleteRole(awsSession)
+					if err != nil {
+						s.logger.Log("error", microerror.MaskAny(err))
+					}
+
+					err = s.deleteInstanceProfile(awsSession)
+					if err != nil {
+						s.logger.Log("error", microerror.MaskAny(err))
+					}
+
+					err = s.deleteLoadBalancer(awsSession)
+					if err != nil {
+						s.logger.Log("error", microerror.MaskAny(err))
 					}
 
 					err = s.deleteSecurityGroup(awsSession)
 					if err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
-						return
 					}
 
 					s.logger.Log("info", fmt.Sprintf("cluster '%s' deleted", cluster.Name))
@@ -603,6 +621,7 @@ func (s *Service) createSecurityGroup(awsSession *session.Session) (string, erro
 
 	groupID := creationResp.GroupId
 
+	// TODO this should not happen for workers
 	rulesParams := &ec2.AuthorizeSecurityGroupIngressInput{
 		GroupId: groupID,
 		IpPermissions: []*ec2.IpPermission{
@@ -635,7 +654,7 @@ func (s *Service) createSecurityGroup(awsSession *session.Session) (string, erro
 		return "", microerror.MaskAny(err)
 	}
 
-	s.logger.Log("info", fmt.Sprintf("security group %v created", groupID))
+	s.logger.Log("info", fmt.Sprintf("security group %s created", *groupID))
 
 	return *groupID, nil
 }
@@ -647,10 +666,82 @@ func (s *Service) deleteSecurityGroup(awsSession *session.Session) error {
 		GroupName: aws.String("g8s-sg"),
 	})
 
+	// TODO handle this differently
+	time.Sleep(3000 * time.Millisecond)
+
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case "InvalidGroup.NotFound":
+				s.logger.Log("info", fmt.Sprintf("role '%s' already removed", roleName))
+			default:
+				return microerror.MaskAny(err)
+			}
+		}
+	}
+
+	s.logger.Log("info", "security group deleted")
+	return nil
+}
+
+func (s *Service) deleteRole(awsSession *session.Session) error {
+	svc := iam.New(awsSession)
+
+	_, err := svc.DeleteRole(&iam.DeleteRoleInput{
+		RoleName: aws.String(roleName),
+	})
+
 	if err != nil {
 		return microerror.MaskAny(err)
 	}
 
-	s.logger.Log("info", "security group deleted")
+	s.logger.Log("info", "role deleted")
+	return nil
+}
+
+func (s *Service) deletePolicy(awsSession *session.Session) error {
+	svc := iam.New(awsSession)
+
+	_, err := svc.DeleteRolePolicy(&iam.DeleteRolePolicyInput{
+		RoleName:   aws.String(roleName),
+		PolicyName: aws.String(policyName),
+	})
+
+	if err != nil {
+		return microerror.MaskAny(err)
+	}
+
+	s.logger.Log("info", "policy deleted")
+	return nil
+}
+
+func (s *Service) removeRoleFromInstanceProfile(awsSession *session.Session) error {
+	svc := iam.New(awsSession)
+
+	_, err := svc.RemoveRoleFromInstanceProfile(&iam.RemoveRoleFromInstanceProfileInput{
+		InstanceProfileName: aws.String(profileName),
+		RoleName:            aws.String(roleName),
+	})
+
+	if err != nil {
+		return microerror.MaskAny(err)
+	}
+
+	s.logger.Log("info", "role removed from instance profile")
+	return nil
+}
+
+func (s *Service) deleteInstanceProfile(awsSession *session.Session) error {
+	svc := iam.New(awsSession)
+
+	_, err := svc.DeleteInstanceProfile(&iam.DeleteInstanceProfileInput{
+		InstanceProfileName: aws.String(profileName),
+	})
+
+	if err != nil {
+		return microerror.MaskAny(err)
+	}
+
+	s.logger.Log("info", "instance profile deleted")
 	return nil
 }
