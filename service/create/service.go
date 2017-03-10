@@ -562,6 +562,10 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 				Key:   aws.String(tagKeyCluster),
 				Value: aws.String(clusterName),
 			},
+			{
+				Key:   aws.String("lorenzo"),
+				Value: aws.String("true"),
+			},
 		},
 	}); err != nil {
 		return microerror.MaskAny(err)
