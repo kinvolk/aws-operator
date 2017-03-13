@@ -3,7 +3,6 @@ package create
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"sync"
 	"time"
 
@@ -198,20 +197,34 @@ func (s *Service) Boot() {
 						return
 					}
 
-					// Run masters LB
-					if err := s.createLoadBalancer(awsSession, cluster.Spec, groupID); err != nil {
-						s.logger.Log("error", fmt.Sprintf("error creating LB: %v", microerror.MaskAny(err)))
+					// var allocationId, ip *string
+					// if allocationId, ip, err = s.allocateElasticIP(awsSession); err != nil {
+					// 	s.logger.Log("error", fmt.Sprintf("error allocating elastic IP: %v", err.Error()))
+					// 	return
+					// }
+
+					// Run masters
+					var masterIDs []*string
+					if masterIDs, err = s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixMaster, groupID); err != nil {
+						s.logger.Log("error", microerror.MaskAny(err))
 						return
 					}
 
-					// Run masters
-					if err := s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixMaster, groupID); err != nil {
+					// associate elastic ip
+					s.logger.Log("info", fmt.Sprintf("waiting for %v to be ready", *masterIDs[0]))
+					ec2Client.WaitUntilInstanceRunning(&ec2.DescribeInstancesInput{
+						InstanceIds: []*string{
+							masterIDs[0],
+						},
+					})
+
+					if err := s.associateElasticIP(awsSession, masterIDs[0]); err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
 						return
 					}
 
 					// Run workers
-					if err := s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixWorker, groupID); err != nil {
+					if _, err := s.runMachines(awsSession, *ec2Client, cluster.Spec, cluster.Name, prefixWorker, groupID); err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
 						return
 					}
@@ -249,12 +262,7 @@ func (s *Service) Boot() {
 					// 	s.logger.Log("error", microerror.MaskAny(err))
 					// }
 
-					err := s.deleteLoadBalancer(awsSession)
-					if err != nil {
-						s.logger.Log("error", microerror.MaskAny(err))
-					}
-
-					err = s.deleteSecurityGroup(awsSession)
+					err := s.deleteSecurityGroup(awsSession)
 					if err != nil {
 						s.logger.Log("error", microerror.MaskAny(err))
 					}
@@ -330,11 +338,12 @@ func (s *Service) deleteLoadBalancer(awsSession *session.Session) error {
 	return nil
 }
 
-func (s *Service) runMachines(awsSession *session.Session, ec2Client ec2.EC2, spec awstpr.Spec, clusterName, prefix, groupID string) error {
+func (s *Service) runMachines(awsSession *session.Session, ec2Client ec2.EC2, spec awstpr.Spec, clusterName, prefix, groupID string) ([]*string, error) {
 	var (
 		machines        []node.Node
 		awsMachines     []tpraws.Node
 		cloudconfigPath string
+		instanceIDs     []*string
 	)
 
 	switch prefix {
@@ -347,27 +356,32 @@ func (s *Service) runMachines(awsSession *session.Session, ec2Client ec2.EC2, sp
 		awsMachines = spec.Aws.Workers
 		cloudconfigPath = s.cloudconfigWorkerPath
 	default:
-		return microerror.MaskAny(fmt.Errorf("invalid prefix %q", prefix))
+		return instanceIDs, microerror.MaskAny(fmt.Errorf("invalid prefix %q", prefix))
 	}
 
 	if len(machines) != len(awsMachines) {
-		return microerror.MaskAny(fmt.Errorf("mismatched number of %q machines in the 'spec' and 'aws' sections: %d != %d",
+		return instanceIDs, microerror.MaskAny(fmt.Errorf("mismatched number of %q machines in the 'spec' and 'aws' sections: %d != %d",
 			prefix,
 			len(machines),
 			len(awsMachines)))
 	}
 
+	var instanceID *string
+	var err error
 	for no, machine := range machines {
 		name := fmt.Sprintf("%s-%d", prefix, no)
 		m := awsNode{
 			Node:    machine,
 			AwsInfo: awsMachines[no],
 		}
-		if err := s.runMachine(awsSession, ec2Client, m, spec, clusterName, cloudconfigPath, name, groupID); err != nil {
-			return microerror.MaskAny(err)
+		if instanceID, err = s.runMachine(awsSession, ec2Client, m, spec, clusterName, cloudconfigPath, name, groupID); err != nil {
+			return instanceIDs, microerror.MaskAny(err)
 		}
+
+		instanceIDs = append(instanceIDs, instanceID)
 	}
-	return nil
+
+	return instanceIDs, nil
 }
 
 const (
@@ -394,6 +408,8 @@ const (
 			}
 		]
 	}`
+	allocationID = "eipalloc-cc1657a5"
+	elasticIP    = "35.158.16.27"
 )
 
 func (s *Service) encodeTLSAssets(awsSession *session.Session, kmsKeyArn string) (*CompactTLSAssets, error) {
@@ -463,7 +479,7 @@ func (s *Service) encodeTLSAssets(awsSession *session.Session, kmsKeyArn string)
 	return compTLS, nil
 }
 
-func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, machine awsNode, spec awstpr.Spec, clusterName, cloudconfigPath, name, securityGroupID string) error {
+func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, machine awsNode, spec awstpr.Spec, clusterName, cloudconfigPath, name, securityGroupID string) (*string, error) {
 	instances, err := ec2Client.DescribeInstances(&ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			&ec2.Filter{
@@ -481,7 +497,7 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 		},
 	})
 	if err != nil {
-		return microerror.MaskAny(err)
+		return aws.String(""), microerror.MaskAny(err)
 	}
 
 	// If the instance doesn't exist, then the Reservation field should be nil.
@@ -493,7 +509,7 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 			for _, i := range r.Instances {
 				if *i.State.Code != EC2TerminatedState {
 					s.logger.Log("info", fmt.Sprintf("instance '%s' already exists", name))
-					return nil
+					return aws.String(""), nil
 				}
 			}
 		}
@@ -502,7 +518,7 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 	tlsAssets, err := s.encodeTLSAssets(awsSession, spec.Aws.KMSKeyArn)
 
 	if err != nil {
-		return microerror.MaskAny(err)
+		return aws.String(""), microerror.MaskAny(err)
 	}
 
 	params := cloudconfigTemplateParams{
@@ -513,10 +529,10 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 
 	cloudconfig, err := newCloudConfig(cloudconfigPath, params)
 	if err != nil {
-		return microerror.MaskAny(err)
+		return aws.String(""), microerror.MaskAny(err)
 	}
 	if err := cloudconfig.executeTemplate(); err != nil {
-		return microerror.MaskAny(err)
+		return aws.String(""), microerror.MaskAny(err)
 	}
 	cloudconfigBase64 := cloudconfig.base64()
 
@@ -544,7 +560,7 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 		},
 	})
 	if err != nil {
-		return microerror.MaskAny(err)
+		return aws.String(""), microerror.MaskAny(err)
 	}
 
 	s.logger.Log("info", fmt.Sprintf("instance '%s' reserved", name))
@@ -568,23 +584,12 @@ func (s *Service) runMachine(awsSession *session.Session, ec2Client ec2.EC2, mac
 			},
 		},
 	}); err != nil {
-		return microerror.MaskAny(err)
+		return aws.String(""), microerror.MaskAny(err)
 	}
 
 	s.logger.Log("info", fmt.Sprintf("instance '%s' tagged", name))
 
-	isMaster, _ := regexp.MatchString("master-[0-9]", name)
-
-	if isMaster {
-		// TODO wait until instance is actually running?
-		err = s.attachInstanceToLB(awsSession, instanceID, name)
-
-		if err != nil {
-			return microerror.MaskAny(err)
-		}
-	}
-
-	return nil
+	return reservation.Instances[0].InstanceId, nil
 }
 
 func (s *Service) attachInstanceToLB(awsSession *session.Session, instanceID *string, instanceName string) error {
@@ -747,5 +752,43 @@ func (s *Service) deleteInstanceProfile(awsSession *session.Session) error {
 	}
 
 	s.logger.Log("info", "instance profile deleted")
+	return nil
+}
+
+func (s *Service) allocateElasticIP(awsSession *session.Session) (*string, *string, error) {
+	svc := ec2.New(awsSession)
+
+	resp, err := svc.AllocateAddress(&ec2.AllocateAddressInput{
+		Domain: aws.String("vpc"),
+	})
+
+	if err != nil {
+		return aws.String(""), aws.String(""), microerror.MaskAny(err)
+	}
+
+	elasticIP, allocationId := resp.PublicIp, resp.AllocationId
+
+	s.logger.Log("info", fmt.Sprintf("allocated elastic ip: %v", *elasticIP))
+
+	return allocationId, elasticIP, nil
+}
+
+func (s *Service) associateElasticIP(awsSession *session.Session, instanceId *string) error {
+	s.logger.Log("info", fmt.Sprintf("attaching ip %v to instance %v", elasticIP, *instanceId))
+	svc := ec2.New(awsSession)
+
+	params := &ec2.AssociateAddressInput{
+		AllocationId: aws.String(allocationID),
+		InstanceId:   instanceId,
+	}
+
+	_, err := svc.AssociateAddress(params)
+
+	if err != nil {
+		return microerror.MaskAny(err)
+	}
+
+	s.logger.Log("info", fmt.Sprintf("attached ip %v", elasticIP))
+
 	return nil
 }
