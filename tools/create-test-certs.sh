@@ -16,11 +16,11 @@ for key in ${keys[*]}; do
   # generate server key, unencrypted
   openssl genrsa -out "${key}-key.pem" $KEY_SIZE
   # generate certificate request
-  openssl req -new -key "${key}-key.pem" -out "${key}.csr" -subj "/CN=localhost"
+  openssl req -new -key "${key}-key.pem" -out "${key}.csr" -subj "/CN=$CN"
 
   # generate CA
   openssl genrsa -out "${key}-ca-key.pem" $KEY_SIZE
-  openssl req -x509 -new -nodes -key "${key}-ca-key.pem" -days 365 -out "${key}-ca.pem" -subj "/CN=localhost"
+  openssl req -x509 -new -nodes -key "${key}-ca-key.pem" -days 365 -out "${key}-ca.pem" -subj "/CN=$CN"
 
   # sign certificate
   openssl x509 -req -in "${key}.csr" -CA "${key}-ca.pem" -CAkey "${key}-ca-key.pem" -CAcreateserial -out "${key}.pem"  -days 365
