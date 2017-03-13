@@ -39,8 +39,6 @@ spec:
 
   masters:
   - hostname: "master1.example.org"
-  - hostname: "master2.example.org"
-  - hostname: "master3.example.org"
 
   workers:
   - hostname: "worker1.example.org"
@@ -49,10 +47,6 @@ spec:
     kmsKeyArn: "arn:aws:kms:eu-central-1:000000000000:key/01234567-89ab-cdef-0123-456789abcdef"
     region: "eu-central-1"
     masters:
-    - imageID: "ami-9501c8fa"
-      instanceType: "t2.medium"
-    - imageID: "ami-9501c8fa"
-      instanceType: "t2.medium"
     - imageID: "ami-9501c8fa"
       instanceType: "t2.medium"
     workers:
