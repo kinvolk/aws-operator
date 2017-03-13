@@ -4,7 +4,7 @@ set -e
 
 CERTS_DIR=certs
 KEY_SIZE=512
-CN=localhost
+CN=35.158.16.27
 
 mkdir -p $CERTS_DIR $CERTS_DIR/calico $CERTS_DIR/etcd
 
