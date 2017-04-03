@@ -1,5 +1,5 @@
-hash: d17b627d6fb76fe1f67660578bc74c7a98674607650f87a303703054f8b2cbdc
-updated: 2017-03-31T16:08:54.090907655+02:00
+hash: cb40c433150ea6c023b951d90f0ad304d8457aa497fd6da4daf8283b30165b11
+updated: 2017-04-03T16:35:24.308214066+02:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -7,7 +7,7 @@ imports:
   - compute/metadata
   - internal
 - name: github.com/aws/aws-sdk-go
-  version: 38dd25dcbd6cec1983fe05abc880d6a3aa49a962
+  version: ed4622e4443a9f24def99cbc3109bdd1e0b605ed
   subpackages:
   - aws
   - aws/awserr
@@ -35,6 +35,7 @@ imports:
   - private/protocol/restxml
   - private/protocol/xml/xmlutil
   - service/ec2
+  - service/elb
   - service/iam
   - service/kms
   - service/s3
