@@ -298,6 +298,16 @@ func (s *Service) Boot() {
 						return
 					}
 
+					var lb resources.Resource
+					lb = &awsresources.ELB{
+						Name:   cluster.Spec.Cluster.Cluster.ID,
+						Client: clients.ELB,
+					}
+					if _, err := lb.CreateIfNotExists(); err != nil {
+						s.logger.Log("error", fmt.Sprintf("could not create ELB: %s", errgo.Details(err)))
+						return
+					}
+
 					// Add an elastic IP to the master
 					masterID := masterIDs[0]
 					s.logger.Log("debug", fmt.Sprintf("waiting for %s to be ready", masterID))
