@@ -309,30 +309,6 @@ func (s *Service) Boot() {
 						return
 					}
 
-					// Add an elastic IP to the master
-					masterID := masterIDs[0]
-					s.logger.Log("debug", fmt.Sprintf("waiting for %s to be ready", masterID))
-					if err := clients.EC2.WaitUntilInstanceRunning(&ec2.DescribeInstancesInput{
-						InstanceIds: []*string{
-							aws.String(masterID),
-						},
-					}); err != nil {
-						s.logger.Log("error", fmt.Sprintf("master took too long to get running, aborting: %v", err))
-						return
-					}
-
-					var elasticIP resources.NamedResource
-					{
-						elasticIP = &awsresources.ElasticIP{
-							InstanceID: masterID,
-							AWSEntity:  awsresources.AWSEntity{Clients: clients},
-						}
-						if err := elasticIP.CreateOrFail(); err != nil {
-							s.logger.Log("error", errgo.Details(err))
-						}
-					}
-					s.logger.Log("info", fmt.Sprintf("attached ip %v to instance %v", elasticIP.Name(), masterID))
-
 					// Run workers
 					anyWorkersCreated, _, err := s.runMachines(runMachinesInput{
 						clients:             clients,
