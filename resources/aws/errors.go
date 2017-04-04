@@ -10,4 +10,5 @@ var (
 	noBucketInBucketObjectError = errgo.New("Object needs to belong to some bucket")
 
 	securityGroupCreateAndFindError = errgo.New("Couldn't create security group, but couldn't find the existing one either")
+	clientNotInitializedError       = errgo.New("The client has not been initialized")
 )

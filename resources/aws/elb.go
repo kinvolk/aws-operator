@@ -17,6 +17,10 @@ type ELB struct {
 }
 
 func (lb *ELB) CreateIfNotExists() (bool, error) {
+	if lb.Client == nil {
+		return false, microerror.MaskAny(clientNotInitializedError)
+	}
+
 	if err := lb.CreateOrFail(); err != nil {
 		if err.Error() == awsclient.ELBAlreadyExists {
 			return false, nil
@@ -29,7 +33,10 @@ func (lb *ELB) CreateIfNotExists() (bool, error) {
 }
 
 func (lb *ELB) CreateOrFail() error {
-	input := &elb.CreateLoadBalancerInput{
+	if lb.Client == nil {
+		return microerror.MaskAny(clientNotInitializedError)
+	}
+	if _, err := lb.Client.CreateLoadBalancer(&elb.CreateLoadBalancerInput{
 		LoadBalancerName: aws.String(lb.Name),
 		Listeners: []*elb.Listener{
 			{
@@ -41,12 +48,11 @@ func (lb *ELB) CreateOrFail() error {
 		AvailabilityZones: []*string{
 			aws.String(lb.AZ),
 		},
-		// SecurityGroups: []*string{
-		// 	aws.String(lb.SecurityGroup),
-		// },
-	}
-
-	if _, err := lb.Client.CreateLoadBalancer(input); err != nil {
+		SecurityGroups: []*string{
+			// TODO remove sg hardcoding
+			aws.String("sg-cb382ca3"),
+		},
+	}); err != nil {
 		return microerror.MaskAny(err)
 	}
 
@@ -54,6 +60,9 @@ func (lb *ELB) CreateOrFail() error {
 }
 
 func (lb *ELB) Delete() error {
+	if lb.Client == nil {
+		return microerror.MaskAny(clientNotInitializedError)
+	}
 	if _, err := lb.Client.DeleteLoadBalancer(&elb.DeleteLoadBalancerInput{
 		LoadBalancerName: aws.String(lb.Name),
 	}); err != nil {
