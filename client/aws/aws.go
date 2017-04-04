@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/elb"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -27,6 +28,7 @@ type Clients struct {
 	IAM *iam.IAM
 	S3  *s3.S3
 	KMS *kms.KMS
+	ELB *elb.ELB
 }
 
 const (
@@ -45,6 +47,7 @@ func NewClients(config Config) Clients {
 		IAM: iam.New(s),
 		S3:  s3.New(s),
 		KMS: kms.New(s),
+		ELB: elb.New(s),
 	}
 
 	return clients
