@@ -298,7 +298,7 @@ func (s *Service) Boot() {
 						return
 					}
 
-					var lb resources.Resource
+					var lb *awsresources.ELB
 					lb = &awsresources.ELB{
 						Name:   cluster.Spec.Cluster.Cluster.ID,
 						AZ:     cluster.Spec.AWS.AZ,
@@ -405,6 +405,17 @@ func (s *Service) Boot() {
 					}
 
 					s.logger.Log("info", "deleted bucket objects")
+
+					// Delete ELB
+					var lb resources.Resource
+					lb = &awsresources.ELB{
+						Name:   cluster.Spec.Cluster.Cluster.ID,
+						Client: clients.ELB,
+					}
+					if err := lb.Delete(); err != nil {
+						s.logger.Log("error", errgo.Details(err))
+						return
+					}
 
 					// Delete policy
 					var policy resources.NamedResource
