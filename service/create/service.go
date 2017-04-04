@@ -304,9 +304,15 @@ func (s *Service) Boot() {
 						AZ:     cluster.Spec.AWS.AZ,
 						Client: clients.ELB,
 					}
-					if _, err := lb.CreateIfNotExists(); err != nil {
+					lbCreated, err := lb.CreateIfNotExists()
+					if err != nil {
 						s.logger.Log("error", fmt.Sprintf("could not create ELB: %s", errgo.Details(err)))
 						return
+					}
+					if lbCreated {
+						s.logger.Log("info", fmt.Sprintf("created ELB '%s'", lb.Name))
+					} else {
+						s.logger.Log("info", fmt.Sprintf("ELB '%s' already exists, reusing", lb.Name))
 					}
 
 					// Run workers
