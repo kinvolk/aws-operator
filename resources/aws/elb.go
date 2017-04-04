@@ -38,9 +38,9 @@ func (lb *ELB) CreateOrFail() error {
 				Protocol:         aws.String("HTTP"),
 			},
 		},
-		// AvailabilityZones: []*string{
-		// 	aws.String(lb.AZ),
-		// },
+		AvailabilityZones: []*string{
+			aws.String(lb.AZ),
+		},
 		// SecurityGroups: []*string{
 		// 	aws.String(lb.SecurityGroup),
 		// },

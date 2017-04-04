@@ -301,6 +301,7 @@ func (s *Service) Boot() {
 					var lb resources.Resource
 					lb = &awsresources.ELB{
 						Name:   cluster.Spec.Cluster.Cluster.ID,
+						AZ:     cluster.Spec.AWS.AZ,
 						Client: clients.ELB,
 					}
 					if _, err := lb.CreateIfNotExists(); err != nil {
