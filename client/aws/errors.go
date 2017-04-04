@@ -7,6 +7,7 @@ const (
 	BucketAlreadyOwnedByYou = "BucketAlreadyOwnedByYou"
 	KeyPairDuplicate        = "InvalidKeyPair.Duplicate"
 	SecurityGroupDuplicate  = "InvalidGroup.Duplicate"
+	ELBAlreadyExists        = "DuplicateLoadBalancerName"
 )
 
 var (
