@@ -9,11 +9,13 @@ import (
 
 // ELB is an Elastic Load Balancer
 type ELB struct {
-	Name          string
-	AZ            string
-	SecurityGroup string
-	Tags          []string
-	Client        *elb.ELB
+	Name             string
+	AZ               string
+	SecurityGroup    string
+	Tags             []string
+	Client           *elb.ELB
+	LoadBalancerPort int
+	InstancePort     int
 }
 
 func (lb *ELB) CreateIfNotExists() (bool, error) {
@@ -41,9 +43,9 @@ func (lb *ELB) CreateOrFail() error {
 		LoadBalancerName: aws.String(lb.Name),
 		Listeners: []*elb.Listener{
 			{
-				InstancePort:     aws.Int64(8080),
-				LoadBalancerPort: aws.Int64(8080),
-				Protocol:         aws.String("HTTP"),
+				InstancePort:     aws.Int64(int64(lb.InstancePort)),
+				LoadBalancerPort: aws.Int64(int64(lb.LoadBalancerPort)),
+				Protocol:         aws.String("HTTPS"),
 			},
 		},
 		AvailabilityZones: []*string{

@@ -301,9 +301,11 @@ func (s *Service) Boot() {
 
 					var lb *awsresources.ELB
 					lb = &awsresources.ELB{
-						Name:   cluster.Spec.Cluster.Cluster.ID,
-						AZ:     cluster.Spec.AWS.AZ,
-						Client: clients.ELB,
+						Name:             cluster.Spec.Cluster.Cluster.ID,
+						AZ:               cluster.Spec.AWS.AZ,
+						InstancePort:     cluster.Spec.Cluster.Kubernetes.API.SecurePort,
+						LoadBalancerPort: cluster.Spec.Cluster.Kubernetes.API.SecurePort,
+						Client:           clients.ELB,
 					}
 					lbCreated, err := lb.CreateIfNotExists()
 					if err != nil {
