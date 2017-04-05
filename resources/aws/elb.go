@@ -36,6 +36,7 @@ func (lb *ELB) CreateOrFail() error {
 	if lb.Client == nil {
 		return microerror.MaskAny(clientNotInitializedError)
 	}
+
 	if _, err := lb.Client.CreateLoadBalancer(&elb.CreateLoadBalancerInput{
 		LoadBalancerName: aws.String(lb.Name),
 		Listeners: []*elb.Listener{
@@ -63,6 +64,7 @@ func (lb *ELB) Delete() error {
 	if lb.Client == nil {
 		return microerror.MaskAny(clientNotInitializedError)
 	}
+
 	if _, err := lb.Client.DeleteLoadBalancer(&elb.DeleteLoadBalancerInput{
 		LoadBalancerName: aws.String(lb.Name),
 	}); err != nil {
