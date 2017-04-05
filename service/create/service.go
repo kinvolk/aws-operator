@@ -430,6 +430,7 @@ func (s *Service) Boot() {
 						s.logger.Log("error", errgo.Details(err))
 						return
 					}
+					s.logger.Log("info", "deleted ELB")
 
 					// Delete policy
 					var policy resources.NamedResource
