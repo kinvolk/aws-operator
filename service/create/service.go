@@ -217,6 +217,7 @@ func (s *Service) Boot() {
 						s.logger.Log("info", fmt.Sprintf("keypair '%s' already exists, reusing", cluster.Name))
 					}
 
+					s.logger.Log("info", fmt.Sprintf("waiting for k8s secrets..."))
 					clusterID := cluster.Spec.Cluster.Cluster.ID
 					certs, err := s.getCertsFromSecrets(clusterID)
 					if err != nil {
@@ -313,6 +314,11 @@ func (s *Service) Boot() {
 						s.logger.Log("info", fmt.Sprintf("created ELB '%s'", lb.Name))
 					} else {
 						s.logger.Log("info", fmt.Sprintf("ELB '%s' already exists, reusing", lb.Name))
+					}
+
+					if err := lb.AttachInstances(masterIDs); err != nil {
+						s.logger.Log("error", fmt.Sprintf("could not register instances with LB: %s", errgo.Details(err)))
+						return
 					}
 
 					// Run workers

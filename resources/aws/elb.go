@@ -71,3 +71,23 @@ func (lb *ELB) Delete() error {
 
 	return nil
 }
+
+func (lb *ELB) AttachInstances(instanceIDs []string) error {
+	var instances []*elb.Instance
+
+	for _, id := range instanceIDs {
+		elbInstance := &elb.Instance{
+			InstanceId: aws.String(id),
+		}
+		instances = append(instances, elbInstance)
+	}
+
+	if _, err := lb.Client.RegisterInstancesWithLoadBalancer(&elb.RegisterInstancesWithLoadBalancerInput{
+		Instances:        instances,
+		LoadBalancerName: aws.String(lb.Name),
+	}); err != nil {
+		return microerror.MaskAny(err)
+	}
+
+	return nil
+}
