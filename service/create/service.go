@@ -279,6 +279,26 @@ func (s *Service) Boot() {
 						s.logger.Log("info", fmt.Sprintf("bucket '%s' already exists, reusing", bucketName))
 					}
 
+					// create security group
+					sg := awsresources.SecurityGroup{
+						Description: fmt.Sprintf("g8s sg for cluster %s", cluster.Spec.Cluster.Cluster.ID),
+						GroupName:   fmt.Sprintf("g8s-%s-sg", cluster.Spec.Cluster.Cluster.ID),
+						PortsToOpen: extractPortsFromTPR(cluster),
+						AWSEntity:   awsresources.AWSEntity{Clients: clients},
+					}
+
+					sgCreated, err := sg.CreateIfNotExists()
+					if err != nil {
+						s.logger.Log("error", fmt.Sprintf("could not create security group: %s", errgo.Details(err)))
+						return
+					}
+
+					if sgCreated {
+						s.logger.Log("info", fmt.Sprintf("created security group '%s'", sg.GroupName))
+					} else {
+						s.logger.Log("info", fmt.Sprintf("security group '%s' already exists, reusing", sg.GroupName))
+					}
+
 					// Run masters
 					anyMastersCreated, masterIDs, err := s.runMachines(runMachinesInput{
 						clients:             clients,
