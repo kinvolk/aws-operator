@@ -52,8 +52,7 @@ func (lb *ELB) CreateOrFail() error {
 			aws.String(lb.AZ),
 		},
 		SecurityGroups: []*string{
-			// TODO remove sg hardcoding
-			aws.String("sg-cb382ca3"),
+			aws.String(lb.SecurityGroup),
 		},
 	}); err != nil {
 		return microerror.MaskAny(err)

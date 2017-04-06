@@ -323,15 +323,19 @@ func (s *Service) Boot() {
 					lb = &awsresources.ELB{
 						Name:             cluster.Spec.Cluster.Cluster.ID,
 						AZ:               cluster.Spec.AWS.AZ,
+						SecurityGroup:    sg.ID(),
 						InstancePort:     cluster.Spec.Cluster.Kubernetes.API.SecurePort,
 						LoadBalancerPort: cluster.Spec.Cluster.Kubernetes.API.SecurePort,
 						Client:           clients.ELB,
+						// TODO pass a VpcID
 					}
+
 					lbCreated, err := lb.CreateIfNotExists()
 					if err != nil {
 						s.logger.Log("error", fmt.Sprintf("could not create ELB: %s", errgo.Details(err)))
 						return
 					}
+
 					if lbCreated {
 						s.logger.Log("info", fmt.Sprintf("created ELB '%s'", lb.Name))
 					} else {
@@ -342,6 +346,8 @@ func (s *Service) Boot() {
 						s.logger.Log("error", fmt.Sprintf("could not register instances with LB: %s", errgo.Details(err)))
 						return
 					}
+
+					s.logger.Log("info", fmt.Sprintf("instances registered with ELB"))
 
 					// Run workers
 					anyWorkersCreated, _, err := s.runMachines(runMachinesInput{
