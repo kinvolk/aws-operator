@@ -342,7 +342,7 @@ func (s *Service) Boot() {
 						s.logger.Log("info", fmt.Sprintf("ELB '%s' already exists, reusing", lb.Name))
 					}
 
-					if err := lb.AttachInstances(masterIDs); err != nil {
+					if err := lb.RegisterInstances(masterIDs); err != nil {
 						s.logger.Log("error", fmt.Sprintf("could not register instances with LB: %s", errgo.Details(err)))
 						return
 					}

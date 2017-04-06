@@ -75,7 +75,7 @@ func (lb *ELB) Delete() error {
 	return nil
 }
 
-func (lb *ELB) AttachInstances(instanceIDs []string) error {
+func (lb *ELB) RegisterInstances(instanceIDs []string) error {
 	var instances []*elb.Instance
 
 	for _, id := range instanceIDs {
