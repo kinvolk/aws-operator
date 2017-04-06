@@ -45,7 +45,8 @@ func (lb *ELB) CreateOrFail() error {
 			{
 				InstancePort:     aws.Int64(int64(lb.InstancePort)),
 				LoadBalancerPort: aws.Int64(int64(lb.LoadBalancerPort)),
-				Protocol:         aws.String("HTTPS"),
+				// TCP because we want to do SSL offloading, not termination
+				Protocol: aws.String("TCP"),
 			},
 		},
 		AvailabilityZones: []*string{
