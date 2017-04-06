@@ -342,6 +342,20 @@ func (s *Service) Boot() {
 						s.logger.Log("info", fmt.Sprintf("ELB '%s' already exists, reusing", lb.Name))
 					}
 
+					s.logger.Log("info", fmt.Sprintf("waiting for masters to be ready..."))
+					var awsFlavouredMasterIDs []*string
+
+					for _, masterID := range masterIDs {
+						awsFlavouredMasterIDs = append(awsFlavouredMasterIDs, aws.String(masterID))
+					}
+
+					if err := clients.EC2.WaitUntilInstanceRunning(&ec2.DescribeInstancesInput{
+						InstanceIds: awsFlavouredMasterIDs,
+					}); err != nil {
+						s.logger.Log("error", fmt.Sprintf("masters took too long to get running, aborting: %v", err))
+						return
+					}
+
 					if err := lb.RegisterInstances(masterIDs); err != nil {
 						s.logger.Log("error", fmt.Sprintf("could not register instances with LB: %s", errgo.Details(err)))
 						return
