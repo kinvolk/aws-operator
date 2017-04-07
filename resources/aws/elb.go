@@ -45,7 +45,7 @@ func (lb *ELB) CreateOrFail() error {
 			{
 				InstancePort:     aws.Int64(int64(lb.InstancePort)),
 				LoadBalancerPort: aws.Int64(int64(lb.LoadBalancerPort)),
-				// TCP because we want to do SSL offloading, not termination
+				// TCP because we want to do SSL passthrough, not termination
 				Protocol: aws.String("TCP"),
 			},
 		},
