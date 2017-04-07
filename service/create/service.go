@@ -373,6 +373,7 @@ func (s *Service) Boot() {
 						keyPairName:         cluster.Name,
 						instanceProfileName: policy.Name(),
 						prefix:              prefixWorker,
+						ELB:                 cloudconfig.ELB{DNSName: lb.DNSName},
 					})
 					if err != nil {
 						s.logger.Log("error", errgo.Details(err))
@@ -538,6 +539,7 @@ type runMachinesInput struct {
 	keyPairName         string
 	instanceProfileName string
 	prefix              string
+	ELB                 cloudconfig.ELB
 }
 
 func (s *Service) runMachines(input runMachinesInput) (bool, []string, error) {
@@ -584,6 +586,7 @@ func (s *Service) runMachines(input runMachinesInput) (bool, []string, error) {
 			instanceProfileName: input.instanceProfileName,
 			name:                name,
 			prefix:              input.prefix,
+			ELB:                 input.ELB,
 		})
 		if err != nil {
 			return false, nil, microerror.MaskAny(err)
@@ -641,12 +644,14 @@ type runMachineInput struct {
 	instanceProfileName string
 	name                string
 	prefix              string
+	ELB                 cloudconfig.ELB
 }
 
 func (s *Service) runMachine(input runMachineInput) (bool, string, error) {
 	cloudConfigParams := cloudconfig.CloudConfigTemplateParams{
 		Cluster:   input.cluster.Spec.Cluster,
 		Node:      input.machine,
+		ELB:       input.ELB,
 		TLSAssets: *input.tlsAssets,
 	}
 

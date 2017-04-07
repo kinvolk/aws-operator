@@ -69,7 +69,7 @@ write_files:
             - --dns-port=10053
             - --domain={{.Cluster.Kubernetes.Domain}}
             - --kubecfg-file=/etc/kubernetes/config/kubelet-kubeconfig.yml
-            - --kube-master-url=https://{{.Cluster.Kubernetes.API.Domain}}
+            - --kube-master-url=https://{{.ELB.DNSName}}
             ports:
             - containerPort: 10053
               name: dns-local
@@ -335,23 +335,23 @@ write_files:
   permissions: 0544
   content: |
       #!/bin/bash
-      while ! curl --output /dev/null --silent --head --fail --cacert /etc/kubernetes/ssl/apiserver-ca.pem --cert /etc/kubernetes/ssl/apiserver-crt.pem --key /etc/kubernetes/ssl/apiserver-key.pem "https://{{.Cluster.Kubernetes.API.Domain}}:443"; do sleep 1 && echo 'Waiting for master'; done
+      while ! curl --output /dev/null --silent --head --fail --cacert /etc/kubernetes/ssl/apiserver-ca.pem --cert /etc/kubernetes/ssl/apiserver-crt.pem --key /etc/kubernetes/ssl/apiserver-key.pem "https://{{.ELB.DNSName}}:443"; do sleep 1 && echo 'Waiting for master'; done
 
       echo "K8S: DNS addons"
       curl -H "Content-Type: application/yaml" \
         -XPOST -d"$(cat /srv/kubedns-dep.yaml)" \
         --cacert /etc/kubernetes/ssl/apiserver-ca.pem --cert /etc/kubernetes/ssl/apiserver-crt.pem --key /etc/kubernetes/ssl/apiserver-key.pem \
-        "https://{{.Cluster.Kubernetes.API.Domain}}:443/apis/extensions/v1beta1/namespaces/kube-system/deployments"
+        "https://{{.ELB.DNSName}}:443/apis/extensions/v1beta1/namespaces/kube-system/deployments"
       curl -H "Content-Type: application/yaml" \
         -XPOST -d"$(cat /srv/kubedns-svc.yaml)" \
         --cacert /etc/kubernetes/ssl/apiserver-ca.pem --cert /etc/kubernetes/ssl/apiserver-crt.pem --key /etc/kubernetes/ssl/apiserver-key.pem \
-        "https://{{.Cluster.Kubernetes.API.Domain}}:443/api/v1/namespaces/kube-system/services"
+        "https://{{.ELB.DNSName}}:443/api/v1/namespaces/kube-system/services"
 
       echo "K8S: Calico Policy"
       curl -H "Content-Type: application/json" \
         -XPOST -d"$(cat /srv/calico-system.json)" \
         --cacert /etc/kubernetes/ssl/apiserver-ca.pem --cert /etc/kubernetes/ssl/apiserver-crt.pem --key /etc/kubernetes/ssl/apiserver-key.pem \
-        "https://{{.Cluster.Kubernetes.API.Domain}}:443/api/v1/namespaces/"
+        "https://{{.ELB.DNSName}}:443/api/v1/namespaces/"
 
       echo "K8S: Fallback Server"
       curl -H "Content-Type: application/yaml" \
@@ -528,7 +528,6 @@ coreos:
       TimeoutStopSec=10
       LimitNOFILE=40000
       EnvironmentFile=/etc/network-environment
-      ExecStartPre=/usr/bin/etcdctl --endpoint=http://{{.Node.Hostname}}:2379 set /k8s/master/{{.Cluster.Etcd.Prefix}} '${DEFAULT_IPV4}'
       ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/etcd/server-ca.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/etcd/server-ca.pem to be written' && sleep 1; done"
       ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/etcd/server-crt.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/etcd/server-crt.pem to be written' && sleep 1; done"
       ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/etcd/server-key.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/etcd/server-key.pem to be written' && sleep 1; done"
@@ -758,7 +757,7 @@ coreos:
       -v /etc/kubernetes/secrets/token_sign_key.pem:/etc/kubernetes/secrets/token_sign_key.pem \
       $IMAGE \
       /hyperkube controller-manager \
-      --master=https://{{.Cluster.Kubernetes.API.Domain}}:443 \
+      --master=https://{{.ELB.DNSName}}:443 \
       --logtostderr=true \
       --v=2 \
       --kubeconfig=/etc/kubernetes/config/controller-manager-kubeconfig.yml \
@@ -819,7 +818,7 @@ coreos:
       -v /etc/kubernetes/config/:/etc/kubernetes/config/ \
       $IMAGE \
       /hyperkube scheduler \
-      --master=https://{{.Cluster.Kubernetes.API.Domain}}:443 \
+      --master=https://{{.ELB.DNSName}}:443 \
       --logtostderr=true \
       --v=2 \
       --kubeconfig=/etc/kubernetes/config/scheduler-kubeconfig.yml
@@ -981,7 +980,7 @@ write_files:
         "mtu": {{.Cluster.Calico.MTU}},
         "policy": {
             "type": "k8s",
-            "k8s_api_root": "https://{{.Cluster.Kubernetes.API.Domain}}/api/v1/",
+            "k8s_api_root": "https://{{.ELB.DNSName}}/api/v1/",
             "k8s_client_certificate": "/etc/kubernetes/ssl/calico/client-crt.pem",
             "k8s_client_key": "/etc/kubernetes/ssl/calico/client-key.pem",
             "k8s_certificate_authority": "/etc/kubernetes/ssl/calico/client-ca.pem"
@@ -1240,7 +1239,7 @@ coreos:
       ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/worker-ca.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/worker-ca.pem to be written' && sleep 1; done"
       ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/worker-crt.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/worker-crt.pem to be written' && sleep 1; done"
       ExecStartPre=/bin/bash -c "while [ ! -f /etc/kubernetes/ssl/worker-key.pem ]; do echo 'Waiting for /etc/kubernetes/ssl/worker-key.pem to be written' && sleep 1; done"
-      ExecStartPre=/bin/sh -c "while ! curl --output /dev/null --silent --head --fail --cacert /etc/kubernetes/ssl/worker-ca.pem --cert /etc/kubernetes/ssl/worker-crt.pem --key /etc/kubernetes/ssl/worker-key.pem https://{{.Cluster.Kubernetes.API.Domain}}; do sleep 1 && echo 'Waiting for master'; done"
+      ExecStartPre=/bin/sh -c "while ! curl --output /dev/null --silent --head --fail --cacert /etc/kubernetes/ssl/worker-ca.pem --cert /etc/kubernetes/ssl/worker-crt.pem --key /etc/kubernetes/ssl/worker-key.pem https://{{.ELB.DNSName}}; do sleep 1 && echo 'Waiting for master'; done"
       ExecStart=/bin/sh -c "/usr/bin/docker run --rm --net=host --privileged=true \
       --name $NAME \
       -v /usr/share/ca-certificates:/etc/ssl/certs \
@@ -1248,7 +1247,7 @@ coreos:
       -v /etc/kubernetes/config/:/etc/kubernetes/config/ \
       $IMAGE \
       /hyperkube proxy \
-      --master=https://{{.Cluster.Kubernetes.API.Domain}} \
+      --master=https://{{.ELB.DNSName}} \
       --proxy-mode=iptables \
       --logtostderr=true \
       --kubeconfig=/etc/kubernetes/config/proxy-kubeconfig.yml \
@@ -1328,7 +1327,7 @@ coreos:
       --port=10250 \
       --hostname-override=${DEFAULT_IPV4} \
       --node-ip=${DEFAULT_IPV4} \
-      --api-servers=https://{{.Cluster.Kubernetes.API.Domain}} \
+      --api-servers=https://{{.ELB.DNSName}} \
       --containerized \
       --enable-server \
       --logtostderr=true \
@@ -1337,7 +1336,7 @@ coreos:
       --healthz-bind-address=${DEFAULT_IPV4} \
       --healthz-port=10248 \
       --cluster-dns={{.Cluster.Kubernetes.DNS}} \
-      --cluster-domain={{.Cluster.Kubernetes.API.Domain}} \
+      --cluster-domain={{.ELB.DNSName}} \
       --network-plugin-dir=/etc/kubernetes/cni/net.d \
       --network-plugin=cni \
       --register-node=true \

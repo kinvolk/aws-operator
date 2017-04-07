@@ -10,9 +10,14 @@ import (
 	"github.com/giantswarm/clustertpr/node"
 )
 
+type ELB struct {
+	DNSName string
+}
+
 type CloudConfigTemplateParams struct {
 	Cluster   clustertpr.Cluster
 	Node      node.Node
+	ELB       ELB
 	TLSAssets CompactTLSAssets
 	Files     []FileAsset
 	Units     []UnitAsset

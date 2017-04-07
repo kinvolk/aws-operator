@@ -16,6 +16,7 @@ type ELB struct {
 	Client           *elb.ELB
 	LoadBalancerPort int
 	InstancePort     int
+	DNSName          string
 }
 
 func (lb *ELB) CreateIfNotExists() (bool, error) {
@@ -39,7 +40,7 @@ func (lb *ELB) CreateOrFail() error {
 		return microerror.MaskAny(clientNotInitializedError)
 	}
 
-	if _, err := lb.Client.CreateLoadBalancer(&elb.CreateLoadBalancerInput{
+	resp, err := lb.Client.CreateLoadBalancer(&elb.CreateLoadBalancerInput{
 		LoadBalancerName: aws.String(lb.Name),
 		Listeners: []*elb.Listener{
 			{
@@ -55,9 +56,13 @@ func (lb *ELB) CreateOrFail() error {
 		SecurityGroups: []*string{
 			aws.String(lb.SecurityGroup),
 		},
-	}); err != nil {
+	})
+
+	if err != nil {
 		return microerror.MaskAny(err)
 	}
+
+	lb.DNSName = *resp.DNSName
 
 	return nil
 }
