@@ -294,7 +294,7 @@ func (s *Service) Boot() {
 					var gateway resources.ResourceWithID
 					gateway = &awsresources.Gateway{
 						Name:      cluster.Name,
-						VpcID:     vpc.ID(),
+						VPCID:     vpc.ID(),
 						AWSEntity: awsresources.AWSEntity{Clients: clients},
 					}
 					gatewayCreated, err := gateway.CreateIfNotExists()

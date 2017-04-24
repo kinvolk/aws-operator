@@ -11,7 +11,7 @@ import (
 
 type Gateway struct {
 	Name  string
-	VpcID string
+	VPCID string
 	id    string
 	AWSEntity
 }
@@ -78,7 +78,7 @@ func (g *Gateway) CreateOrFail() error {
 
 	if _, err := g.Clients.EC2.AttachInternetGateway(&ec2.AttachInternetGatewayInput{
 		InternetGatewayId: aws.String(gatewayID),
-		VpcId:             aws.String(g.VpcID),
+		VpcId:             aws.String(g.VPCID),
 	}); err != nil {
 		return microerror.MaskAny(err)
 	}
