@@ -16,7 +16,7 @@ type KMSKey struct {
 
 // The number of days a KMS key is in "pending for deletion" state.
 // During this pending state, the key cannot be used.
-// After that, the key is effectively deleted.
+// Only after this interval is the key effectively deleted.
 const keyPendingWindowInDays = 7
 
 func (kk KMSKey) fullAlias() string {

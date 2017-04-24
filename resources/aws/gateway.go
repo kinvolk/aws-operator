@@ -107,6 +107,16 @@ func (g *Gateway) Delete() error {
 		return microerror.MaskAny(err)
 	}
 
+	// If the Gateway is attached to a VPC, we have to detach it before deleting it.
+	if len(gateway.Attachments) > 0 {
+		if _, err := g.Clients.EC2.DetachInternetGateway(&ec2.DetachInternetGatewayInput{
+			InternetGatewayId: gateway.InternetGatewayId,
+			VpcId:             gateway.Attachments[0].VpcId,
+		}); err != nil {
+			return microerror.MaskAny(err)
+		}
+	}
+
 	if _, err := g.Clients.EC2.DeleteInternetGateway(&ec2.DeleteInternetGatewayInput{
 		InternetGatewayId: gateway.InternetGatewayId,
 	}); err != nil {
