@@ -414,6 +414,7 @@ func (s *Service) Boot() {
 					})
 					if err != nil {
 						s.logger.Log("error", errgo.Details(err))
+						return
 					}
 
 					if !validateIDs(masterIDs) {
