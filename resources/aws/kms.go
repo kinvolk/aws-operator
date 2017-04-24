@@ -14,6 +14,11 @@ type KMSKey struct {
 	AWSEntity
 }
 
+// The number of days a KMS key is in "pending for deletion" state.
+// During this pending state, the key cannot be used.
+// After that, the key is effectively deleted.
+const keyPendingWindowInDays = 7
+
 func (kk KMSKey) fullAlias() string {
 	return fmt.Sprintf("alias/%s", kk.Name)
 }
@@ -58,7 +63,7 @@ func (kk *KMSKey) Delete() error {
 	// AWS API doesn't allow to delete the KMS key immediately, but we can schedule its deletion
 	if _, err := kk.Clients.KMS.ScheduleKeyDeletion(&kms.ScheduleKeyDeletionInput{
 		KeyId:               key.KeyMetadata.KeyId,
-		PendingWindowInDays: aws.Int64(7),
+		PendingWindowInDays: aws.Int64(keyPendingWindowInDays),
 	}); err != nil {
 		return microerror.MaskAny(err)
 	}
