@@ -74,10 +74,11 @@ func (g *Gateway) CreateOrFail() error {
 	if err != nil {
 		return microerror.MaskAny(err)
 	}
-	gatewayID := *gateway.InternetGateway.InternetGatewayId
+
+	g.id = *gateway.InternetGateway.InternetGatewayId
 
 	if _, err := g.Clients.EC2.AttachInternetGateway(&ec2.AttachInternetGatewayInput{
-		InternetGatewayId: aws.String(gatewayID),
+		InternetGatewayId: aws.String(g.id),
 		VpcId:             aws.String(g.VPCID),
 	}); err != nil {
 		return microerror.MaskAny(err)
@@ -85,7 +86,7 @@ func (g *Gateway) CreateOrFail() error {
 
 	if _, err := g.Clients.EC2.CreateTags(&ec2.CreateTagsInput{
 		Resources: []*string{
-			aws.String(gatewayID),
+			aws.String(g.id),
 		},
 		Tags: []*ec2.Tag{
 			{
@@ -96,8 +97,6 @@ func (g *Gateway) CreateOrFail() error {
 	}); err != nil {
 		return microerror.MaskAny(err)
 	}
-
-	g.id = gatewayID
 
 	return nil
 }
