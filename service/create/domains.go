@@ -98,14 +98,31 @@ func hostedZoneComment(cluster awstpr.CustomObject) string {
 	return fmt.Sprintf("Hosted zone for cluster %s", cluster.Spec.Cluster.Cluster.ID)
 }
 
-// hostedZoneName removes the first 2 subdomains from the domain
-// e.g.  apiserver.foobar.aws.giantswarm.io -> aws.giantswarm.io
-func hostedZoneName(domain string) (string, error) {
-	tmp := strings.SplitN(domain, ".", 3)
+type Domain struct {
+	Component string
+	Random    string
+	g8s       string
+	Region    string
+	Customer  string
+	Fixed     string
+}
 
-	if len(tmp) != 3 {
+// hostedZoneName removes the first 2 subdomains from the domain
+// e.g. etcd.pbmva.g8s.eu-west-1.adidas.aws.giantswarm.io
+func hostedZoneName(domain string) (string, error) {
+	tmp := strings.SplitN(domain, ".", 6)
+	d := Domain{
+		Component: tmp[0],
+		Random:    tmp[1],
+		g8s:       tmp[2],
+		Region:    tmp[3],
+		Customer:  tmp[4],
+		Fixed:     tmp[5],
+	}
+
+	if len(tmp) != 6 {
 		return "", microerror.MaskAny(malformedCloudConfigKeyError)
 	}
 
-	return strings.Join(tmp[2:], ""), nil
+	return strings.Join(d.Fixed, ""), nil
 }
