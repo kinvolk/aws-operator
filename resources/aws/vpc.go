@@ -2,11 +2,12 @@ package aws
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	microerror "github.com/giantswarm/microkit/error"
+
+	"github.com/giantswarm/aws-operator/resources"
 )
 
 type VPC struct {
@@ -15,6 +16,9 @@ type VPC struct {
 	id        string
 	AWSEntity
 }
+
+// Implement ResourceWithID.
+var _ = resources.ResourceWithID(&VPC{})
 
 func (v VPC) findExisting() (*ec2.Vpc, error) {
 	vpcs, err := v.Clients.EC2.DescribeVpcs(&ec2.DescribeVpcsInput{
@@ -39,15 +43,13 @@ func (v VPC) findExisting() (*ec2.Vpc, error) {
 }
 
 func (v *VPC) checkIfExists() (bool, error) {
-	vpc, err := v.findExisting()
-	if err != nil {
-		if strings.Contains(err.Error(), vpcFindError.Error()) {
-			return false, nil
-		}
+	_, err := v.findExisting()
+	if IsVpcFindError(err) {
+		return false, nil
+	} else if err != nil {
 		return false, microerror.MaskAny(err)
 	}
 
-	v.id = *vpc.VpcId
 	return true, nil
 }
 
@@ -115,6 +117,17 @@ func (v *VPC) Delete() error {
 	}); err != nil {
 		return microerror.MaskAny(err)
 	}
+
+	return nil
+}
+
+func (v *VPC) Get() error {
+	vpc, err := v.findExisting()
+	if err != nil {
+		return microerror.MaskAny(err)
+	}
+
+	v.id = *vpc.VpcId
 
 	return nil
 }

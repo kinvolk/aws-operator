@@ -9,6 +9,8 @@ import (
 	microerror "github.com/giantswarm/microkit/error"
 
 	awsclient "github.com/giantswarm/aws-operator/client/aws"
+
+	"github.com/giantswarm/aws-operator/resources"
 )
 
 type Subnet struct {
@@ -19,6 +21,9 @@ type Subnet struct {
 	id               string
 	AWSEntity
 }
+
+// Implement ResourceWithID.
+var _ = resources.ResourceWithID(&Subnet{})
 
 func (s Subnet) findExisting() (*ec2.Subnet, error) {
 	subnets, err := s.Clients.EC2.DescribeSubnets(&ec2.DescribeSubnetsInput{
@@ -43,15 +48,13 @@ func (s Subnet) findExisting() (*ec2.Subnet, error) {
 }
 
 func (s *Subnet) checkIfExists() (bool, error) {
-	subnet, err := s.findExisting()
-	if err != nil {
-		if strings.Contains(err.Error(), subnetFindError.Error()) {
-			return false, nil
-		}
+	_, err := s.findExisting()
+	if IsSubnetFind(err) {
+		return false, nil
+	} else if err != nil {
 		return false, microerror.MaskAny(err)
 	}
 
-	s.id = *subnet.SubnetId
 	return true, nil
 }
 
@@ -100,16 +103,22 @@ func (s *Subnet) CreateOrFail() error {
 }
 
 func (s *Subnet) Delete() error {
+	if _, err := s.Clients.EC2.DeleteSubnet(&ec2.DeleteSubnetInput{
+		SubnetId: aws.String(s.id),
+	}); err != nil {
+		return microerror.MaskAny(err)
+	}
+
+	return nil
+}
+
+func (s *Subnet) Get() error {
 	subnet, err := s.findExisting()
 	if err != nil {
 		return microerror.MaskAny(err)
 	}
 
-	if _, err := s.Clients.EC2.DeleteSubnet(&ec2.DeleteSubnetInput{
-		SubnetId: subnet.SubnetId,
-	}); err != nil {
-		return microerror.MaskAny(err)
-	}
+	s.id = *subnet.SubnetId
 
 	return nil
 }

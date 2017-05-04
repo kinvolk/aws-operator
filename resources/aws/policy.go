@@ -6,6 +6,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	microerror "github.com/giantswarm/microkit/error"
+
+	"github.com/giantswarm/aws-operator/resources"
 )
 
 const (
@@ -61,6 +63,9 @@ type Policy struct {
 	name      string
 	AWSEntity
 }
+
+// Implement NamedResource.
+var _ = resources.NamedResource(&Policy{})
 
 func (p *Policy) clusterPolicyName() string {
 	return fmt.Sprintf("%s-%s", p.ClusterID, PolicyNameTemplate)

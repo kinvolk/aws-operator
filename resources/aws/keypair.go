@@ -10,6 +10,7 @@ import (
 	microerror "github.com/giantswarm/microkit/error"
 
 	awsclient "github.com/giantswarm/aws-operator/client/aws"
+	"github.com/giantswarm/aws-operator/resources"
 )
 
 type KeyPairProvider interface {
@@ -35,6 +36,9 @@ type KeyPair struct {
 	Provider    KeyPairProvider
 	AWSEntity
 }
+
+// Implement ReusableResource.
+var _ = resources.ReusableResource(&KeyPair{})
 
 func (k *KeyPair) CreateIfNotExists() (bool, error) {
 	err := k.CreateOrFail()

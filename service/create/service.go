@@ -183,20 +183,15 @@ func (s *Service) Boot() {
 					}
 
 					// Create keypair
-					var keyPair resources.Resource
-					var keyPairCreated bool
-					{
-						var err error
-						keyPair = &awsresources.KeyPair{
-							ClusterName: cluster.Name,
-							Provider:    awsresources.NewFSKeyPairProvider(s.pubKeyFile),
-							AWSEntity:   awsresources.AWSEntity{Clients: clients},
-						}
-						keyPairCreated, err = keyPair.CreateIfNotExists()
-						if err != nil {
-							s.logger.Log("error", fmt.Sprintf("could not create keypair: %s", errgo.Details(err)))
-							return
-						}
+					keyPair := &awsresources.KeyPair{
+						ClusterName: cluster.Name,
+						Provider:    awsresources.NewFSKeyPairProvider(s.pubKeyFile),
+						AWSEntity:   awsresources.AWSEntity{Clients: clients},
+					}
+					keyPairCreated, err := keyPair.CreateIfNotExists()
+					if err != nil {
+						s.logger.Log("error", fmt.Sprintf("could not create keypair: %s", errgo.Details(err)))
+						return
 					}
 
 					if keyPairCreated {
@@ -236,35 +231,26 @@ func (s *Service) Boot() {
 					// Create policy
 					bucketName := s.bucketName(cluster)
 
-					var policy resources.NamedResource
-					var policyErr error
-					{
-						policy = &awsresources.Policy{
-							ClusterID: cluster.Spec.Cluster.Cluster.ID,
-							KMSKeyArn: kmsKey.Arn(),
-							S3Bucket:  bucketName,
-							AWSEntity: awsresources.AWSEntity{Clients: clients},
-						}
-						policyErr = policy.CreateOrFail()
+					policy := &awsresources.Policy{
+						ClusterID: cluster.Spec.Cluster.Cluster.ID,
+						KMSKeyArn: kmsKey.Arn(),
+						S3Bucket:  bucketName,
+						AWSEntity: awsresources.AWSEntity{Clients: clients},
 					}
+					policyErr := policy.CreateOrFail()
 					if policyErr != nil {
 						s.logger.Log("error", fmt.Sprintf("could not create policy: %s", errgo.Details(policyErr)))
 					}
 
 					// Create S3 bucket
-					var bucket resources.Resource
-					var bucketCreated bool
-					{
-						var err error
-						bucket = &awsresources.Bucket{
-							Name:      bucketName,
-							AWSEntity: awsresources.AWSEntity{Clients: clients},
-						}
-						bucketCreated, err = bucket.CreateIfNotExists()
-						if err != nil {
-							s.logger.Log("error", fmt.Sprintf("could not create S3 bucket: %s", errgo.Details(err)))
-							return
-						}
+					bucket := &awsresources.Bucket{
+						Name:      bucketName,
+						AWSEntity: awsresources.AWSEntity{Clients: clients},
+					}
+					bucketCreated, err := bucket.CreateIfNotExists()
+					if err != nil {
+						s.logger.Log("error", fmt.Sprintf("could not create S3 bucket: %s", errgo.Details(err)))
+						return
 					}
 
 					if bucketCreated {
@@ -274,8 +260,7 @@ func (s *Service) Boot() {
 					}
 
 					// Create VPC
-					var vpc resources.ResourceWithID
-					vpc = &awsresources.VPC{
+					vpc := &awsresources.VPC{
 						CidrBlock: cluster.Spec.AWS.VPC.CIDR,
 						Name:      cluster.Name,
 						AWSEntity: awsresources.AWSEntity{Clients: clients},
@@ -289,11 +274,14 @@ func (s *Service) Boot() {
 						s.logger.Log("info", fmt.Sprintf("created vpc for cluster '%s'", cluster.Name))
 					} else {
 						s.logger.Log("info", fmt.Sprintf("vpc for cluster '%s' already exists, reusing", cluster.Name))
+						if err := vpc.Get(); err != nil {
+							s.logger.Log("error", fmt.Sprintf("vpc for cluster '%s' was supposed to exist, but it doesn't", cluster.Name))
+							return
+						}
 					}
 
 					// Create gateway
-					var gateway resources.ResourceWithID
-					gateway = &awsresources.Gateway{
+					gateway := &awsresources.Gateway{
 						Name:      cluster.Name,
 						VpcID:     vpc.ID(),
 						AWSEntity: awsresources.AWSEntity{Clients: clients},
@@ -639,11 +627,120 @@ func (s *Service) Boot() {
 						s.logger.Log("info", "deleted workers")
 					}
 
+					// Delete Record Sets.
+					apiLBName, err := loadBalancerName(cluster.Spec.Cluster.Kubernetes.API.Domain, cluster)
+					etcdLBName, err := loadBalancerName(cluster.Spec.Cluster.Etcd.Domain, cluster)
+					ingressLBName, err := loadBalancerName(cluster.Spec.Cluster.Kubernetes.IngressController.Domain, cluster)
+					if err != nil {
+						s.logger.Log("error", errgo.Details(err))
+					} else {
+						apiLB, err := awsresources.NewELBFromExisting(apiLBName, clients.ELB)
+						etcdLB, err := awsresources.NewELBFromExisting(etcdLBName, clients.ELB)
+						ingressLB, err := awsresources.NewELBFromExisting(ingressLBName, clients.ELB)
+						if err != nil {
+							s.logger.Log("error", errgo.Details(err))
+						} else {
+							recordSetInputs := []recordSetInput{
+								recordSetInput{
+									Cluster:  cluster,
+									Client:   clients.Route53,
+									Resource: apiLB,
+									Domain:   cluster.Spec.Cluster.Kubernetes.API.Domain,
+								},
+								recordSetInput{
+									Cluster:  cluster,
+									Client:   clients.Route53,
+									Resource: etcdLB,
+									Domain:   cluster.Spec.Cluster.Etcd.Domain,
+								},
+								recordSetInput{
+									Cluster:  cluster,
+									Client:   clients.Route53,
+									Resource: ingressLB,
+									Domain:   cluster.Spec.Cluster.Kubernetes.IngressController.Domain,
+								},
+							}
+
+							var rsErr error
+							for _, input := range recordSetInputs {
+								if rsErr = s.deleteRecordSet(input); rsErr != nil {
+									s.logger.Log("error", errgo.Details(rsErr))
+								}
+							}
+							if rsErr == nil {
+								s.logger.Log("info", "deleted API record sets")
+							}
+						}
+					}
+
+					// Delete Load Balancers.
+					loadBalancerInputs := []LoadBalancerInput{
+						LoadBalancerInput{
+							Name:    cluster.Spec.Cluster.Kubernetes.API.Domain,
+							Clients: clients,
+							Cluster: cluster,
+						},
+						LoadBalancerInput{
+							Name:    cluster.Spec.Cluster.Etcd.Domain,
+							Clients: clients,
+							Cluster: cluster,
+						},
+						LoadBalancerInput{
+							Name:    cluster.Spec.Cluster.Kubernetes.IngressController.Domain,
+							Clients: clients,
+							Cluster: cluster,
+						},
+					}
+
+					var elbErr error
+					for _, lbInput := range loadBalancerInputs {
+						if elbErr = s.deleteLoadBalancer(lbInput); elbErr != nil {
+							s.logger.Log("error", errgo.Details(elbErr))
+						}
+					}
+					if elbErr == nil {
+						s.logger.Log("info", "deleted ELBs")
+					}
+
+					// Delete route table.
+					routeTable := &awsresources.RouteTable{
+						Name:   cluster.Name,
+						Client: clients.EC2,
+					}
+					if err := routeTable.Delete(); err != nil {
+						s.logger.Log("error", fmt.Sprintf("could not delete route table: %s", errgo.Details(err)))
+					} else {
+						s.logger.Log("info", "deleted route table")
+					}
+
+					// Sync VPC
+					vpc := &awsresources.VPC{
+						Name:      cluster.Name,
+						AWSEntity: awsresources.AWSEntity{Clients: clients},
+					}
+					if err := vpc.Get(); err != nil {
+						s.logger.Log("error", errgo.Details(err))
+					}
+
+					// Delete gateway.
+					gateway := &awsresources.Gateway{
+						Name:      cluster.Name,
+						VpcID:     vpc.ID(),
+						AWSEntity: awsresources.AWSEntity{Clients: clients},
+					}
+					if err := gateway.Delete(); err != nil {
+						s.logger.Log("error", fmt.Sprintf("could not delete gateway: %s", errgo.Details(err)))
+					} else {
+						s.logger.Log("info", "deleted gateway")
+					}
+
 					// Delete public subnet.
-					var publicSubnet resources.ResourceWithID
-					publicSubnet = &awsresources.Subnet{
+					publicSubnet := &awsresources.Subnet{
 						Name:      subnetName(cluster, suffixPublic),
 						AWSEntity: awsresources.AWSEntity{Clients: clients},
+					}
+					if err := publicSubnet.Get(); err != nil {
+						s.logger.Log("error", errgo.Details(err))
 					}
 					if err := publicSubnet.Delete(); err != nil {
 						s.logger.Log("error", fmt.Sprintf("could not delete public subnet: %s", errgo.Details(err)))
@@ -669,36 +766,8 @@ func (s *Service) Boot() {
 						s.logger.Log("error", fmt.Sprintf("could not delete security group '%s': %s", workersSGInput.GroupName, errgo.Details(err)))
 					}
 
-					// Delete route table.
-					var routeTable resources.ResourceWithID
-					routeTable = &awsresources.RouteTable{
-						Name:   cluster.Name,
-						Client: clients.EC2,
-					}
-					if err := routeTable.Delete(); err != nil {
-						s.logger.Log("error", fmt.Sprintf("could not delete route table: %s", errgo.Details(err)))
-					} else {
-						s.logger.Log("info", "deleted route table")
-					}
-
-					// Delete gateway.
-					var gateway resources.ResourceWithID
-					gateway = &awsresources.Gateway{
-						Name:      cluster.Name,
-						AWSEntity: awsresources.AWSEntity{Clients: clients},
-					}
-					if err := gateway.Delete(); err != nil {
-						s.logger.Log("error", fmt.Sprintf("could not delete gateway: %s", errgo.Details(err)))
-					} else {
-						s.logger.Log("info", "deleted gateway")
-					}
-
 					// Delete VPC.
-					var vpc resources.ResourceWithID
-					vpc = &awsresources.VPC{
-						Name:      cluster.Name,
-						AWSEntity: awsresources.AWSEntity{Clients: clients},
-					}
+
 					if err := vpc.Delete(); err != nil {
 						s.logger.Log("error", fmt.Sprintf("could not delete vpc: %s", errgo.Details(err)))
 					} else {
@@ -736,104 +805,8 @@ func (s *Service) Boot() {
 
 					s.logger.Log("info", "deleted bucket objects")
 
-					// Delete API server Record Sets.
-					apiLBName, err := loadBalancerName(cluster.Spec.Cluster.Kubernetes.API.Domain, cluster)
-					if err != nil {
-						s.logger.Log("error", errgo.Details(err))
-					} else {
-						lb, err := awsresources.NewELBFromExisting(apiLBName, clients.ELB)
-						if err != nil {
-							s.logger.Log("error", errgo.Details(err))
-						} else {
-							recordSetInputs := []recordSetInput{
-								recordSetInput{
-									Cluster:  cluster,
-									Client:   clients.Route53,
-									Resource: lb,
-									Domain:   cluster.Spec.Cluster.Kubernetes.API.Domain,
-								},
-								recordSetInput{
-									Cluster:  cluster,
-									Client:   clients.Route53,
-									Resource: lb,
-									Domain:   cluster.Spec.Cluster.Etcd.Domain,
-								},
-							}
-
-							var rsErr error
-							for _, input := range recordSetInputs {
-								if rsErr = s.deleteRecordSet(input); rsErr != nil {
-									s.logger.Log("error", errgo.Details(rsErr))
-								}
-							}
-							if rsErr == nil {
-								s.logger.Log("info", "deleted record sets")
-							}
-						}
-					}
-
-					// Delete Ingress Record Sets.
-					ingressLBName, err := loadBalancerName(cluster.Spec.Cluster.Kubernetes.IngressController.Domain, cluster)
-					if err != nil {
-						s.logger.Log("error", errgo.Details(err))
-					} else {
-						lb, err := awsresources.NewELBFromExisting(ingressLBName, clients.ELB)
-						if err != nil {
-							s.logger.Log("error", errgo.Details(err))
-						} else {
-							recordSetInputs := []recordSetInput{
-								recordSetInput{
-									Cluster:  cluster,
-									Client:   clients.Route53,
-									Resource: lb,
-									Domain:   cluster.Spec.Cluster.Kubernetes.IngressController.Domain,
-								},
-							}
-
-							var rsErr error
-							for _, input := range recordSetInputs {
-								if rsErr = s.deleteRecordSet(input); rsErr != nil {
-									s.logger.Log("error", errgo.Details(rsErr))
-								}
-							}
-							if rsErr == nil {
-								s.logger.Log("info", "deleted record sets")
-							}
-						}
-					}
-
-					// Delete Load Balancers.
-					loadBalancerInputs := []LoadBalancerInput{
-						LoadBalancerInput{
-							Name:    cluster.Spec.Cluster.Kubernetes.API.Domain,
-							Clients: clients,
-							Cluster: cluster,
-						},
-						LoadBalancerInput{
-							Name:    cluster.Spec.Cluster.Etcd.Domain,
-							Clients: clients,
-							Cluster: cluster,
-						},
-						LoadBalancerInput{
-							Name:    cluster.Spec.Cluster.Kubernetes.IngressController.Domain,
-							Clients: clients,
-							Cluster: cluster,
-						},
-					}
-
-					var elbErr error
-					for _, lbInput := range loadBalancerInputs {
-						if elbErr = s.deleteLoadBalancer(lbInput); elbErr != nil {
-							s.logger.Log("error", errgo.Details(elbErr))
-						}
-					}
-					if elbErr == nil {
-						s.logger.Log("info", "deleted ELBs")
-					}
-
 					// Delete policy.
-					var policy resources.NamedResource
-					policy = &awsresources.Policy{
+					policy := &awsresources.Policy{
 						ClusterID: cluster.Spec.Cluster.Cluster.ID,
 						S3Bucket:  bucketName,
 						AWSEntity: awsresources.AWSEntity{Clients: clients},
@@ -845,8 +818,7 @@ func (s *Service) Boot() {
 					}
 
 					// Delete KMS key.
-					var kmsKey resources.ArnResource
-					kmsKey = &awsresources.KMSKey{
+					kmsKey := &awsresources.KMSKey{
 						Name:      cluster.Name,
 						AWSEntity: awsresources.AWSEntity{Clients: clients},
 					}
@@ -857,8 +829,7 @@ func (s *Service) Boot() {
 					}
 
 					// Delete keypair.
-					var keyPair resources.Resource
-					keyPair = &awsresources.KeyPair{
+					keyPair := &awsresources.KeyPair{
 						ClusterName: cluster.Name,
 						AWSEntity:   awsresources.AWSEntity{Clients: clients},
 					}

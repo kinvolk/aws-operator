@@ -8,12 +8,17 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	microerror "github.com/giantswarm/microkit/error"
 	"github.com/juju/errgo"
+
+	"github.com/giantswarm/aws-operator/resources"
 )
 
 type Bucket struct {
 	Name string
 	AWSEntity
 }
+
+// Implement ReusableResource.
+var _ = resources.ReusableResource(&Bucket{})
 
 func (b *Bucket) CreateIfNotExists() (bool, error) {
 	if err := b.CreateOrFail(); err != nil {

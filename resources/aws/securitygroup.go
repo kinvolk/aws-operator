@@ -6,6 +6,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	microerror "github.com/giantswarm/microkit/error"
+
+	"github.com/giantswarm/aws-operator/resources"
 )
 
 type SecurityGroup struct {
@@ -16,6 +18,9 @@ type SecurityGroup struct {
 	id          string
 	AWSEntity
 }
+
+// Implement ResourceWithID.
+var _ = resources.ResourceWithID(&SecurityGroup{})
 
 func (s SecurityGroup) findExisting() (*ec2.SecurityGroup, error) {
 	portRuleFilters := []*ec2.Filter{
@@ -78,14 +83,12 @@ func (s SecurityGroup) findExisting() (*ec2.SecurityGroup, error) {
 }
 
 func (s *SecurityGroup) checkIfExists() (bool, error) {
-	securityGroup, err := s.findExisting()
+	_, err := s.findExisting()
 	if IsSecurityGroupFind(err) {
 		return false, nil
 	} else if err != nil {
 		return false, microerror.MaskAny(err)
 	}
-
-	s.id = *securityGroup.GroupId
 
 	return true, nil
 }
@@ -153,6 +156,17 @@ func (s *SecurityGroup) Delete() error {
 	}); err != nil {
 		return microerror.MaskAny(err)
 	}
+
+	return nil
+}
+
+func (s *SecurityGroup) Get() error {
+	securityGroup, err := s.findExisting()
+	if err != nil {
+		return microerror.MaskAny(err)
+	}
+
+	s.id = *securityGroup.GroupId
 
 	return nil
 }

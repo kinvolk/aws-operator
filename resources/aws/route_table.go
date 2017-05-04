@@ -100,6 +100,14 @@ func (r *RouteTable) Delete() error {
 		return microerror.MaskAny(err)
 	}
 
+	for _, association := range routeTable.Associations {
+		if _, err := r.Client.DisassociateRouteTable(&ec2.DisassociateRouteTableInput{
+			AssociationId: association.RouteTableAssociationId,
+		}); err != nil {
+			return microerror.MaskAny(err)
+		}
+	}
+
 	if _, err := r.Client.DeleteRouteTable(&ec2.DeleteRouteTableInput{
 		RouteTableId: routeTable.RouteTableId,
 	}); err != nil {
