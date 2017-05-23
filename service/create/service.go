@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/giantswarm/awstpr"
 	awsinfo "github.com/giantswarm/awstpr/aws"
@@ -865,6 +866,19 @@ func (s *Service) onAdd(obj interface{}) {
 	}
 	ingressHZID := ingressHZ.GetID()
 
+	wildcardHZInput := hostedZoneInput{
+		Cluster: cluster,
+		Domain:  cluster.Spec.Cluster.Kubernetes.IngressController.WildcardDomain,
+		Client:  clients.Route53,
+	}
+
+	wildcardHZ, err := s.createHostedZone(wildcardHZInput)
+	if err != nil {
+		s.logger.Log("error", errgo.Details(err))
+		return
+	}
+	wildcardHZID := wildcardHZ.GetID()
+
 	// Run workers
 	anyWorkersCreated, workerIDs, err := s.runMachines(runMachinesInput{
 		clients:             clients,
@@ -933,6 +947,7 @@ func (s *Service) onAdd(obj interface{}) {
 			Resource:     apiLB,
 			Domain:       cluster.Spec.Cluster.Kubernetes.API.Domain,
 			HostedZoneID: apiHZID,
+			Type:         route53.RRTypeA,
 		},
 		recordSetInput{
 			Cluster:      cluster,
@@ -940,6 +955,7 @@ func (s *Service) onAdd(obj interface{}) {
 			Resource:     etcdLB,
 			Domain:       cluster.Spec.Cluster.Etcd.Domain,
 			HostedZoneID: etcdHZID,
+			Type:         route53.RRTypeA,
 		},
 		recordSetInput{
 			Cluster:      cluster,
@@ -947,6 +963,15 @@ func (s *Service) onAdd(obj interface{}) {
 			Resource:     ingressLB,
 			Domain:       cluster.Spec.Cluster.Kubernetes.IngressController.Domain,
 			HostedZoneID: ingressHZID,
+			Type:         route53.RRTypeA,
+		},
+		recordSetInput{
+			Cluster:      cluster,
+			Client:       clients.Route53,
+			Domain:       cluster.Spec.Cluster.Kubernetes.IngressController.WildcardDomain,
+			HostedZoneID: wildcardHZID,
+			Value:        cluster.Spec.Cluster.Kubernetes.IngressController.Domain,
+			Type:         route53.RRTypeCname,
 		},
 	}
 
@@ -1057,6 +1082,12 @@ func (s *Service) onDelete(obj interface{}) {
 					Client:   clients.Route53,
 					Resource: ingressLB,
 					Domain:   cluster.Spec.Cluster.Kubernetes.IngressController.Domain,
+				},
+				recordSetInput{
+					Cluster: cluster,
+					Client:  clients.Route53,
+					Value:   cluster.Spec.Cluster.Kubernetes.IngressController.Domain,
+					Domain:  cluster.Spec.Cluster.Kubernetes.IngressController.WildcardDomain,
 				},
 			}
 
